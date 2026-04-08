@@ -44,10 +44,15 @@ jobs:
 
       - name: Add storage permissions
         run: |
-          # Add READ_MEDIA_IMAGES (Android 13+) and READ_EXTERNAL_STORAGE (older) permissions
+          # Add all required storage permissions for different Android versions
           sed -i '/<\/manifest>/i \
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\
-              <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />' \
+              <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\
+              <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />' \
+            android/app/src/main/AndroidManifest.xml
+
+          # Add requestLegacyExternalStorage for Android 10
+          sed -i 's/<application/<application android:requestLegacyExternalStorage="true"/' \
             android/app/src/main/AndroidManifest.xml
 
       - name: Add DirectoryPicker plugin

@@ -2,32 +2,47 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ImageIcon, FolderOpen, Loader2 } from 'lucide-react';
 import { isNative, scanDirectoryRecursive, requestPermissions } from '@/lib/capacitorPhotos';
-import { pickDirectory } from '@/lib/directoryPicker';
+import { pickDirectory, hasAllFilesAccess, requestAllFilesAccess } from '@/lib/directoryPicker';
 import { photoStore } from '@/lib/photoStore';
 import { toast } from 'sonner';
 
 export default function EmptyState({ onSelectFolder, savedMeta }) {
   const [loading, setLoading] = useState(false);
+  const [scanStatus, setScanStatus] = useState('');
   const native = isNative();
   const hasSaved = savedMeta && Object.keys(savedMeta).length > 0;
 
   const handlePickFolder = async () => {
     setLoading(true);
+    setScanStatus('Opening file explorer...');
     try {
-      const granted = await requestPermissions();
-      if (!granted) {
-        toast.error('Storage permission required');
-        setLoading(false);
-        return;
+      // Request storage permissions
+      await requestPermissions();
+
+      // On Android 11+, check for "All Files Access"
+      const allFiles = await hasAllFilesAccess();
+      if (!allFiles) {
+        toast.info('Please grant "All Files Access" to scan folders');
+        const granted = await requestAllFilesAccess();
+        if (!granted) {
+          toast.error('File access permission required to scan photos');
+          setLoading(false);
+          setScanStatus('');
+          return;
+        }
       }
 
       const path = await pickDirectory();
       if (!path) {
         setLoading(false);
+        setScanStatus('');
         return; // User cancelled
       }
 
-      const folders = await scanDirectoryRecursive(path);
+      setScanStatus('Scanning folders...');
+      const folders = await scanDirectoryRecursive(path, (scanned, found) => {
+        setScanStatus(`Scanned ${scanned} folders · ${found} photos found`);
+      });
       const count = Object.values(folders).reduce((s, arr) => s + arr.length, 0);
 
       if (count > 0) {
@@ -41,6 +56,7 @@ export default function EmptyState({ onSelectFolder, savedMeta }) {
       toast.error('Error: ' + (e.message || 'Failed to open folder picker'));
     }
     setLoading(false);
+    setScanStatus('');
   };
 
   const handleReloadSaved = async () => {
@@ -92,18 +108,25 @@ export default function EmptyState({ onSelectFolder, savedMeta }) {
       >
         {/* Android: Open native directory picker */}
         {native && (
-          <button
-            onClick={handlePickFolder}
-            disabled={loading}
-            className="w-full bg-primary text-primary-foreground px-6 py-3.5 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-primary/20 flex items-center justify-center gap-2.5 disabled:opacity-60"
-          >
-            {loading ? (
-              <Loader2 className="w-4.5 h-4.5 animate-spin" />
-            ) : (
-              <FolderOpen className="w-4.5 h-4.5" />
+          <>
+            <button
+              onClick={handlePickFolder}
+              disabled={loading}
+              className="w-full bg-primary text-primary-foreground px-6 py-3.5 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-primary/20 flex items-center justify-center gap-2.5 disabled:opacity-60"
+            >
+              {loading ? (
+                <Loader2 className="w-4.5 h-4.5 animate-spin" />
+              ) : (
+                <FolderOpen className="w-4.5 h-4.5" />
+              )}
+              {loading ? 'Scanning...' : 'Select folder'}
+            </button>
+            {scanStatus && (
+              <p className="text-xs text-muted-foreground text-center animate-pulse">
+                {scanStatus}
+              </p>
             )}
-            {loading ? 'Scanning...' : 'Select folder'}
-          </button>
+          </>
         )}
 
         {/* Android: Reload saved folders */}

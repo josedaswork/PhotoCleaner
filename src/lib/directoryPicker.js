@@ -12,3 +12,29 @@ export async function pickDirectory() {
   const result = await DirectoryPicker.pick();
   return result?.path || null;
 }
+
+/**
+ * Check if "All Files Access" is granted (Android 11+).
+ */
+export async function hasAllFilesAccess() {
+  if (!Capacitor.isNativePlatform()) return true;
+  try {
+    const result = await DirectoryPicker.checkAllFilesAccess();
+    return result?.granted === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Request "All Files Access" permission (opens system Settings).
+ */
+export async function requestAllFilesAccess() {
+  if (!Capacitor.isNativePlatform()) return true;
+  try {
+    const result = await DirectoryPicker.requestAllFilesAccess();
+    return result?.granted === true;
+  } catch {
+    return false;
+  }
+}
