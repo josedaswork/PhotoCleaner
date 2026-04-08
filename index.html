@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/swipeclean.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#f9fafb" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>SwipeClean</title>
+    <style>
+      /* Prevent pull-to-refresh and overscroll on Android */
+      html, body { overscroll-behavior: none; }
+      body { -webkit-user-select: none; user-select: none; }
+      /* GPU-accelerated scrolling */
+      * { -webkit-tap-highlight-color: transparent; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,740 @@
+index.html (raíz del proyecto)
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href__="https://base44.com/logo_v2.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest" href__="/manifest.json" />
+    <title>Base44 APP</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+    darkMode: ["class"],
+    content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
+  theme: {
+    extend: {
+      fontFamily: {
+        inter: ['var(--font-inter)']
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)'
+      },
+      colors: {
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))'
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))'
+        },
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))'
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))'
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))'
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))'
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))'
+        },
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        chart: {
+          '1': 'hsl(var(--chart-1))',
+          '2': 'hsl(var(--chart-2))',
+          '3': 'hsl(var(--chart-3))',
+          '4': 'hsl(var(--chart-4))',
+          '5': 'hsl(var(--chart-5))'
+        },
+        sidebar: {
+          DEFAULT: 'hsl(var(--sidebar-background))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          primary: 'hsl(var(--sidebar-primary))',
+          'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
+          accent: 'hsl(var(--sidebar-accent))',
+          'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
+          border: 'hsl(var(--sidebar-border))',
+          ring: 'hsl(var(--sidebar-ring))'
+        }
+      },
+      keyframes: {
+        'accordion-down': {
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' }
+        },
+        'accordion-up': {
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' }
+        }
+      },
+      animation: {
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out'
+      }
+    }
+  },
+  plugins: [require("tailwindcss-animate")],
+}
+src/index.css
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --background: 0 0% 98%;
+    --foreground: 0 0% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 7%;
+    --primary: 0 0% 7%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 94%;
+    --secondary-foreground: 0 0% 20%;
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 94%;
+    --accent-foreground: 0 0% 7%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 91%;
+    --input: 0 0% 91%;
+    --ring: 0 0% 7%;
+    --radius: 1rem;
+    /* ...sidebar vars... */
+  }
+  .dark { /* ...dark vars... */ }
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground font-inter; }
+}
+src/App.jsx
+import { Toaster } from "@/components/ui/toaster"
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClientInstance } from '@/lib/query-client'
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import PageNotFound from './lib/PageNotFound';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+
+import Home from '@/pages/Home';
+import CleanFolder from '@/pages/CleanFolder';
+import Duplicates from '@/pages/Duplicates';
+
+const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+
+  if (isLoadingPublicSettings || isLoadingAuth) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (authError) {
+    if (authError.type === 'user_not_registered') return <UserNotRegisteredError />;
+    else if (authError.type === 'auth_required') { navigateToLogin(); return null; }
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/clean" element={<CleanFolder />} />
+      <Route path="/duplicates" element={<Duplicates />} />
+      <Route path="*" element={<PageNotFound />} />
+    </Routes>
+  );
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <AuthenticatedApp />
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    </AuthProvider>
+  )
+}
+
+export default App
+src/lib/photoStore.js
+let _folders = {};
+let _listeners = [];
+
+function notify() {
+  _listeners.forEach(fn => fn());
+}
+
+export const photoStore = {
+  subscribe(fn) {
+    _listeners.push(fn);
+    return () => { _listeners = _listeners.filter(l => l !== fn); };
+  },
+  getFolders() { return _folders; },
+  getFolderNames() { return Object.keys(_folders).sort(); },
+  getPhotos(folderName) { return _folders[folderName] || []; },
+  getTotalPhotos() {
+    return Object.values(_folders).reduce((sum, arr) => sum + arr.length, 0);
+  },
+  getTotalSize() {
+    return Object.values(_folders).reduce(
+      (sum, arr) => sum + arr.reduce((s, p) => s + p.size, 0), 0
+    );
+  },
+  async loadFromInput(files) {
+    _folders = {};
+    for (const file of files) {
+      if (!file.type.startsWith('image/') && !file.name.match(/\.(jpg|jpeg|png|webp|gif|bmp|tiff|heic)$/i)) continue;
+      const path = file.webkitRelativePath || file.name;
+      const parts = path.split('/');
+      const folderName = parts.length > 2
+        ? parts.slice(1, -1).join('/')
+        : (parts.length > 1 ? parts.slice(0, -1).join('/') : 'Root');
+      if (!_folders[folderName]) _folders[folderName] = [];
+      const url = URL.createObjectURL(file);
+      _folders[folderName].push({ file, url, name: file.name, size: file.size, folder: folderName, path });
+    }
+    notify();
+  },
+  removePhotos(photosToRemove) {
+    const urlsToRemove = new Set(photosToRemove.map(p => p.url));
+    for (const folder of Object.keys(_folders)) {
+      _folders[folder] = _folders[folder].filter(p => !urlsToRemove.has(p.url));
+      if (_folders[folder].length === 0) delete _folders[folder];
+    }
+    photosToRemove.forEach(p => URL.revokeObjectURL(p.url));
+    notify();
+  },
+  clear() {
+    Object.values(_folders).flat().forEach(p => URL.revokeObjectURL(p.url));
+    _folders = {};
+    notify();
+  }
+};
+src/lib/usePhotoStore.js
+import { useState, useEffect } from 'react';
+import { photoStore } from './photoStore';
+
+export function usePhotoStore() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    return photoStore.subscribe(() => setTick(t => t + 1));
+  }, []);
+  return photoStore;
+}
+src/lib/formatSize.js
+export function formatSize(bytes) {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return (bytes / Math.pow(1024, i)).toFixed(i > 1 ? 1 : 0) + ' ' + units[i];
+}
+src/components/SwipeCard.jsx
+import React, { useRef } from 'react';
+import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
+
+export default function SwipeCard({ photo, onSwipe, isTop }) {
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-300, 0, 300], [-18, 0, 18]);
+  const opacity = useTransform(x, [-300, -100, 0, 100, 300], [0.5, 1, 1, 1, 0.5]);
+  const keepOpacity = useTransform(x, [0, 100, 200], [0, 0.6, 1]);
+  const discardOpacity = useTransform(x, [-200, -100, 0], [1, 0.6, 0]);
+  const constraintsRef = useRef(null);
+
+  const handleDragEnd = (_, info) => {
+    const threshold = 120;
+    if (info.offset.x > threshold) {
+      animate(x, 500, { duration: 0.3 });
+      setTimeout(() => onSwipe('keep'), 300);
+    } else if (info.offset.x < -threshold) {
+      animate(x, -500, { duration: 0.3 });
+      setTimeout(() => onSwipe('discard'), 300);
+    } else {
+      animate(x, 0, { type: 'spring', stiffness: 500, damping: 30 });
+    }
+  };
+
+  if (!isTop) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center p-4">
+        <div className="relative w-full h-full max-w-lg rounded-2xl overflow-hidden bg-muted shadow-lg scale-95 opacity-60">
+          <img src={photo.url} alt={photo.name} className="w-full h-full object-contain bg-black/5" draggable={false} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref__={constraintsRef} className="absolute inset-0 flex items-center justify-center p-4">
+      <motion.div
+        style={{ x, rotate, opacity }}
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.9}
+        onDragEnd={handleDragEnd}
+        className="relative w-full h-full max-w-lg cursor-grab active:cursor-grabbing"
+      >
+        <div className="relative w-full h-full rounded-2xl overflow-hidden bg-card shadow-2xl">
+          <img src={photo.url} alt={photo.name} className="w-full h-full object-contain" draggable={false} />
+          <motion.div style={{ opacity: keepOpacity }} className="absolute inset-0 bg-emerald-500/10 pointer-events-none flex items-center justify-center">
+            <div className="bg-emerald-500 text-white text-2xl font-bold px-8 py-3 rounded-full rotate-[-12deg] border-4 border-emerald-400">KEEP</div>
+          </motion.div>
+          <motion.div style={{ opacity: discardOpacity }} className="absolute inset-0 bg-red-500/10 pointer-events-none flex items-center justify-center">
+            <div className="bg-red-500 text-white text-2xl font-bold px-8 py-3 rounded-full rotate-[12deg] border-4 border-red-400">DELETE</div>
+          </motion.div>
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/40 to-transparent rounded-b-2xl pointer-events-none">
+          <p className="text-white text-sm font-medium truncate">{photo.name}</p>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+src/components/ConfirmDialog.jsx
+import React from 'react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { formatSize } from '@/lib/formatSize';
+
+export default function ConfirmDialog({ open, onClose, onConfirm, discardedPhotos }) {
+  const totalSize = discardedPhotos.reduce((sum, p) => sum + p.size, 0);
+  return (
+    <AlertDialog open={open} onOpenChange={onClose}>
+      <AlertDialogContent className="max-w-sm rounded-2xl">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-center text-xl">Delete {discardedPhotos.length} photos?</AlertDialogTitle>
+          <AlertDialogDescription className="text-center">
+            You'll free up <span className="font-semibold text-foreground">{formatSize(totalSize)}</span> of space. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+          <AlertDialogAction onClick={onConfirm} className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-xl h-12 text-base">
+            Delete {discardedPhotos.length} photos
+          </AlertDialogAction>
+          <AlertDialogCancel className="w-full rounded-xl h-12 text-base mt-0">Cancel</AlertDialogCancel>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+src/components/FolderCard.jsx
+import React from 'react';
+import { Folder, ChevronRight } from 'lucide-react';
+import { formatSize } from '@/lib/formatSize';
+
+export default function FolderCard({ name, photos, onClick }) {
+  const totalSize = photos.reduce((sum, p) => sum + p.size, 0);
+  const previewPhotos = photos.slice(0, 4);
+  return (
+    <button onClick={onClick} className="w-full text-left group">
+      <div className="bg-card rounded-2xl p-4 border border-border/50 hover:border-border hover:shadow-md transition-all duration-200">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-xl overflow-hidden bg-muted grid grid-cols-2 grid-rows-2 gap-px flex-shrink-0">
+            {previewPhotos.map((photo, i) => (
+              <img key={i} src={photo.url} alt="" className="w-full h-full object-cover" />
+            ))}
+            {Array.from({ length: Math.max(0, 4 - previewPhotos.length) }).map((_, i) => (
+              <div key={`empty-${i}`} className="bg-muted" />
+            ))}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <Folder className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <p className="font-medium text-sm truncate">{name}</p>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{photos.length} photos · {formatSize(totalSize)}</p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0" />
+        </div>
+      </div>
+    </button>
+  );
+}
+src/components/EmptyState.jsx
+import React from 'react';
+import { ImageIcon } from 'lucide-react';
+
+export default function EmptyState({ onSelectFolder }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center px-6 py-20">
+      <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mb-6">
+        <ImageIcon className="w-9 h-9 text-muted-foreground" />
+      </div>
+      <h2 className="text-xl font-semibold mb-2">Select a folder</h2>
+      <p className="text-muted-foreground text-center text-sm max-w-xs mb-8">
+        Choose a folder with photos to start cleaning up your gallery
+      </p>
+      <label className="cursor-pointer">
+        <div className="bg-primary text-primary-foreground px-8 py-3 rounded-full text-sm font-medium hover:opacity-90 transition-opacity">
+          Browse Folder
+        </div>
+        <input type="file" webkitdirectory="" directory="" multiple className="hidden" onChange={onSelectFolder} />
+      </label>
+    </div>
+  );
+}
+src/components/CompletionScreen.jsx
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Check, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { formatSize } from '@/lib/formatSize';
+
+export default function CompletionScreen({ keptCount, discardedCount, discardedSize, onDone, onReview }) {
+  return (
+    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="flex-1 flex flex-col items-center justify-center px-6">
+      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+        className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mb-6">
+        <Check className="w-10 h-10 text-emerald-600" />
+      </motion.div>
+      <h2 className="text-2xl font-semibold mb-2">All reviewed!</h2>
+      <p className="text-muted-foreground text-center text-sm max-w-xs mb-8">You reviewed all photos in this folder</p>
+      <div className="flex gap-8 mb-10">
+        <div className="text-center">
+          <p className="text-3xl font-bold text-emerald-600">{keptCount}</p>
+          <p className="text-xs text-muted-foreground mt-1">Kept</p>
+        </div>
+        <div className="text-center">
+          <p className="text-3xl font-bold text-red-500">{discardedCount}</p>
+          <p className="text-xs text-muted-foreground mt-1">To delete</p>
+        </div>
+      </div>
+      {discardedCount > 0 && (
+        <p className="text-sm text-muted-foreground mb-6">
+          Free up <span className="font-semibold text-foreground">{formatSize(discardedSize)}</span>
+        </p>
+      )}
+      <div className="flex flex-col gap-3 w-full max-w-xs">
+        {discardedCount > 0 && (
+          <Button onClick={onDone} className="w-full h-12 rounded-full text-base bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+            <Trash2 className="w-4 h-4 mr-2" />Delete {discardedCount} photos
+          </Button>
+        )}
+        <Button onClick={onReview} variant="outline" className="w-full h-12 rounded-full text-base">
+          {discardedCount > 0 ? 'Review choices' : 'Go back'}
+        </Button>
+      </div>
+    </motion.div>
+  );
+}
+src/pages/Home.jsx
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Sparkles, FolderOpen } from 'lucide-react';
+import { usePhotoStore } from '@/lib/usePhotoStore';
+import { formatSize } from '@/lib/formatSize';
+import EmptyState from '@/components/EmptyState';
+import FolderCard from '@/components/FolderCard';
+
+export default function Home() {
+  const store = usePhotoStore();
+  const navigate = useNavigate();
+  const folderNames = store.getFolderNames();
+  const hasPhotos = store.getTotalPhotos() > 0;
+
+  const handleSelectFolder = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) store.loadFromInput(files);
+    e.target.value = '';
+  };
+
+  if (!hasPhotos) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <header className="px-6 pt-12 pb-4">
+          <h1 className="text-3xl font-bold tracking-tight">Clean</h1>
+          <p className="text-muted-foreground text-sm mt-1">Free up space by reviewing your photos</p>
+        </header>
+        <EmptyState onSelectFolder={handleSelectFolder} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col pb-8">
+      <header className="px-6 pt-12 pb-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Clean</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              {store.getTotalPhotos()} photos · {formatSize(store.getTotalSize())}
+            </p>
+          </div>
+          <label className="cursor-pointer">
+            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors">
+              <FolderOpen className="w-5 h-5 text-secondary-foreground" />
+            </div>
+            <input type="file" webkitdirectory="" directory="" multiple className="hidden" onChange={handleSelectFolder} />
+          </label>
+        </div>
+      </header>
+
+      <div className="px-6 mt-6">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Folders</h2>
+        <div className="space-y-2">
+          {folderNames.map(name => (
+            <FolderCard key={name} name={name} photos={store.getPhotos(name)}
+              onClick={() => navigate(`/clean?folder=${encodeURIComponent(name)}`)} />
+          ))}
+        </div>
+      </div>
+
+      <div className="px-6 mt-8">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Tools</h2>
+        {folderNames.map(name => (
+          <button key={name} onClick={() => navigate(`/duplicates?folder=${encodeURIComponent(name)}`)} className="w-full text-left mb-2">
+            <div className="bg-card rounded-2xl p-4 border border-border/50 hover:border-border hover:shadow-md transition-all duration-200">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-5 h-5 text-violet-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">Find duplicates in {name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Analyze similar photos</p>
+                </div>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+src/pages/CleanFolder.jsx
+import React, { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
+import { usePhotoStore } from '@/lib/usePhotoStore';
+import SwipeCard from '@/components/SwipeCard';
+import CompletionScreen from '@/components/CompletionScreen';
+import ConfirmDialog from '@/components/ConfirmDialog';
+
+export default function CleanFolder() {
+  const navigate = useNavigate();
+  const store = usePhotoStore();
+  const urlParams = new URLSearchParams(window.location.search);
+  const folderName = urlParams.get('folder') || '';
+  const photos = useMemo(() => store.getPhotos(folderName), [folderName, store]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [decisions, setDecisions] = useState({});
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const isComplete = currentIndex >= photos.length;
+  const discardedPhotos = useMemo(() => photos.filter(p => decisions[p.url] === 'discard'), [photos, decisions]);
+  const keptPhotos = useMemo(() => photos.filter(p => decisions[p.url] === 'keep'), [photos, decisions]);
+  const discardedSize = discardedPhotos.reduce((sum, p) => sum + p.size, 0);
+
+  const handleSwipe = useCallback((direction) => {
+    if (currentIndex >= photos.length) return;
+    const photo = photos[currentIndex];
+    setDecisions(prev => ({ ...prev, [photo.url]: direction }));
+    setCurrentIndex(prev => prev + 1);
+  }, [currentIndex, photos]);
+
+  const handleUndo = () => {
+    if (currentIndex <= 0) return;
+    const photo = photos[currentIndex - 1];
+    setDecisions(prev => { const next = { ...prev }; delete next[photo.url]; return next; });
+    setCurrentIndex(prev => prev - 1);
+  };
+
+  const handleConfirmDelete = () => {
+    store.removePhotos(discardedPhotos);
+    setShowConfirm(false);
+    navigate('/');
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-background">
+      <header className="flex items-center justify-between px-4 py-3 flex-shrink-0">
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 rounded-full hover:bg-secondary transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="text-center">
+          <p className="text-sm font-medium">{folderName}</p>
+          {!isComplete && <p className="text-xs text-muted-foreground">{currentIndex + 1} of {photos.length}</p>}
+        </div>
+        <button onClick={handleUndo} disabled={currentIndex === 0}
+          className="p-2 -mr-2 rounded-full hover:bg-secondary transition-colors disabled:opacity-30">
+          <RotateCcw className="w-5 h-5" />
+        </button>
+      </header>
+
+      {!isComplete && (
+        <div className="h-0.5 bg-muted mx-4 rounded-full overflow-hidden flex-shrink-0">
+          <div className="h-full bg-foreground transition-all duration-300 ease-out rounded-full"
+            style={{ width: `${(currentIndex / photos.length) * 100}%` }} />
+        </div>
+      )}
+
+      {isComplete ? (
+        <CompletionScreen keptCount={keptPhotos.length} discardedCount={discardedPhotos.length}
+          discardedSize={discardedSize} onDone={() => setShowConfirm(true)}
+          onReview={() => { setCurrentIndex(0); setDecisions({}); }} />
+      ) : (
+        <div className="flex-1 relative overflow-hidden">
+          {currentIndex + 1 < photos.length && (
+            <SwipeCard key={photos[currentIndex + 1].url} photo={photos[currentIndex + 1]} isTop={false} />
+          )}
+          <AnimatePresence>
+            <SwipeCard key={photos[currentIndex].url} photo={photos[currentIndex]} onSwipe={handleSwipe} isTop={true} />
+          </AnimatePresence>
+        </div>
+      )}
+
+      {!isComplete && (
+        <div className="flex justify-between items-center px-10 py-4 flex-shrink-0">
+          <button onClick={() => handleSwipe('discard')}
+            className="w-14 h-14 rounded-full bg-red-50 border-2 border-red-200 flex items-center justify-center hover:bg-red-100 transition-colors active:scale-95">
+            <span className="text-red-500 text-2xl font-light">✕</span>
+          </button>
+          <p className="text-xs text-muted-foreground">Swipe to decide</p>
+          <button onClick={() => handleSwipe('keep')}
+            className="w-14 h-14 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center hover:bg-emerald-100 transition-colors active:scale-95">
+            <span className="text-emerald-500 text-2xl font-light">♥</span>
+          </button>
+        </div>
+      )}
+
+      <ConfirmDialog open={showConfirm} onClose={() => setShowConfirm(false)}
+        onConfirm={handleConfirmDelete} discardedPhotos={discardedPhotos} />
+    </div>
+  );
+}
+src/pages/Duplicates.jsx
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Loader2, Trash2, Check } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { usePhotoStore } from '@/lib/usePhotoStore';
+import { formatSize } from '@/lib/formatSize';
+import { Button } from '@/components/ui/button';
+import ConfirmDialog from '@/components/ConfirmDialog';
+
+function getImageFingerprint(imgUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const size = 16;
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, size, size);
+      const data = ctx.getImageData(0, 0, size, size).data;
+      const fingerprint = [];
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = Math.round((data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114) / 32);
+        fingerprint.push(gray);
+      }
+      resolve(fingerprint);
+    };
+    img.onerror = () => resolve(null);
+    img.src = imgUrl;
+  });
+}
+
+function hammingDistance(a, b) {
+  if (!a || !b || a.length !== b.length) return Infinity;
+  let distance = 0;
+  for (let i = 0; i < a.length; i++) distance += Math.abs(a[i] - b[i]);
+  return distance / a.length;
+}
+
+export default function Duplicates() {
+  const navigate = useNavigate();
+  const store = usePhotoStore();
+  const folderName = new URLSearchParams(window.location.search).get('folder') || '';
+  const photos = useMemo(() => store.getPhotos(folderName), [folderName, store]);
+  const [analyzing, setAnalyzing] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const [groups, setGroups] = useState([]);
+  const [selectedToDelete, setSelectedToDelete] = useState(new Set());
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  useEffect(() => {
+    async function analyze() {
+      setAnalyzing(true);
+      const fingerprints = [];
+      for (let i = 0; i < photos.length; i++) {
+        const fp = await getImageFingerprint(photos[i].url);
+        fingerprints.push({ photo: photos[i], fingerprint: fp });
+        setProgress(Math.round(((i + 1) / photos.length) * 100));
+      }
+      const threshold = 1.2;
+      const used = new Set();
+      const duplicateGroups = [];
+      for (let i = 0; i < fingerprints.length; i++) {
+        if (used.has(i)) continue;
+        const group = [fingerprints[i].photo];
+        for (let j = i + 1; j < fingerprints.length; j++) {
+          if (used.has(j)) continue;
+          if (hammingDistance(fingerprints[i].fingerprint, fingerprints[j].fingerprint) < threshold) {
+            group.push(fingerprints[j].photo);
+            used.add(j);
+          }
+        }
+        if (group.length > 1) { used.add(i); duplicateGroups.push(group); }
+      }
+      setGroups(duplicateGroups);
+      setAnalyzing(false);
+    }
+    if (photos.length > 0) analyze();
+    else setAnalyzing(false);
+  }, [photos]);
+
+  const photosToDelete = useMemo(() => photos.filter(p => selectedToDelete.has(p.url)), [photos, selectedToDelete]);
+
+  const autoSelectDuplicates = () => {
+    const toDelete = new Set();
+    groups.forEach(group => {
+      [...group].sort((a, b) => b.size - a.size).slice(1).forEach(p => toDelete.add(p.url));
+    });
+    setSelectedToDelete(toDelete);
+  };
+
+  const handleConfirmDelete = () => {
+    store.removePhotos(photosToDelete);
+    setShowConfirm(false);
+    navigate('/');
+  };
+
+  // ... render (same as full version above)
+}
