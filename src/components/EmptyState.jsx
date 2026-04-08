@@ -1,25 +1,38 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ImageIcon, FolderOpen, ScanSearch, Loader2 } from 'lucide-react';
-import { isNative } from '@/lib/capacitorPhotos';
+import { ImageIcon, FolderOpen, Loader2 } from 'lucide-react';
+import { isNative, scanDirectoryRecursive, requestPermissions } from '@/lib/capacitorPhotos';
+import { pickDirectory } from '@/lib/directoryPicker';
 import { photoStore } from '@/lib/photoStore';
-import { scanDirectory } from '@/lib/capacitorPhotos';
-import FolderBrowser from '@/components/FolderBrowser';
 import { toast } from 'sonner';
 
 export default function EmptyState({ onSelectFolder, savedMeta }) {
-  const [browserOpen, setBrowserOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const native = isNative();
   const hasSaved = savedMeta && Object.keys(savedMeta).length > 0;
 
-  const handleNativeFolderSelect = async (dirPath) => {
+  const handlePickFolder = async () => {
     setLoading(true);
     try {
-      const photos = await scanDirectory(dirPath);
-      if (photos.length > 0) {
-        await photoStore.loadNativeFolders({ [dirPath]: photos });
-        toast.success(`Loaded ${photos.length} photos from ${dirPath.split('/').pop()}`);
+      const granted = await requestPermissions();
+      if (!granted) {
+        toast.error('Storage permission required');
+        setLoading(false);
+        return;
+      }
+
+      const path = await pickDirectory();
+      if (!path) {
+        setLoading(false);
+        return;
+      }
+
+      const folders = await scanDirectoryRecursive(path);
+      const count = Object.values(folders).reduce((s, arr) => s + arr.length, 0);
+
+      if (count > 0) {
+        await photoStore.loadNativeFolders(folders);
+        toast.success(`Found ${count} photos in ${Object.keys(folders).length} folder${Object.keys(folders).length > 1 ? 's' : ''}`);
       } else {
         toast.info('No photos found in this folder');
       }
@@ -66,7 +79,7 @@ export default function EmptyState({ onSelectFolder, savedMeta }) {
         className="text-muted-foreground text-center text-sm max-w-[280px] mb-8 leading-relaxed"
       >
         {native
-          ? 'Browse your device to select a folder with photos'
+          ? 'Select a folder from your device to start cleaning photos'
           : 'Select a folder with photos to start cleaning'}
       </motion.p>
 
@@ -76,19 +89,19 @@ export default function EmptyState({ onSelectFolder, savedMeta }) {
         transition={{ delay: 0.4 }}
         className="flex flex-col items-center gap-3 w-full max-w-[280px]"
       >
-        {/* Android: Browse folders in-app */}
+        {/* Android: Open native directory picker */}
         {native && (
           <button
-            onClick={() => setBrowserOpen(true)}
+            onClick={handlePickFolder}
             disabled={loading}
             className="w-full bg-primary text-primary-foreground px-6 py-3.5 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-primary/20 flex items-center justify-center gap-2.5 disabled:opacity-60"
           >
             {loading ? (
               <Loader2 className="w-4.5 h-4.5 animate-spin" />
             ) : (
-              <ScanSearch className="w-4.5 h-4.5" />
+              <FolderOpen className="w-4.5 h-4.5" />
             )}
-            {loading ? 'Loading...' : 'Browse folders'}
+            {loading ? 'Scanning...' : 'Select folder'}
           </button>
         )}
 
@@ -103,7 +116,7 @@ export default function EmptyState({ onSelectFolder, savedMeta }) {
           </button>
         )}
 
-        {/* Web: Browse folder (webkitdirectory) */}
+        {/* Web: Browse folder */}
         {!native && (
           <label className="w-full cursor-pointer">
             <div className="w-full bg-primary text-primary-foreground px-6 py-3.5 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-primary/20 flex items-center justify-center gap-2.5">
@@ -120,31 +133,7 @@ export default function EmptyState({ onSelectFolder, savedMeta }) {
             />
           </label>
         )}
-
-        {/* Web: show recent folders */}
-        {!native && hasSaved && (
-          <div className="mt-4 w-full">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 text-center">
-              Recent folders
-            </p>
-            <div className="space-y-1.5">
-              {Object.entries(savedMeta).map(([name, info]) => (
-                <div key={name} className="bg-card rounded-xl px-4 py-2.5 border border-border/50 text-center">
-                  <p className="text-sm font-medium truncate">{name}</p>
-                  <p className="text-xs text-muted-foreground">{info.count} photos</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </motion.div>
-
-      {/* Folder browser overlay (Android) */}
-      <FolderBrowser
-        open={browserOpen}
-        onClose={() => setBrowserOpen(false)}
-        onSelect={handleNativeFolderSelect}
-      />
     </div>
   );
 }

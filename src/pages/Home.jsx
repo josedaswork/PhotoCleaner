@@ -5,10 +5,10 @@ import { Sparkles, FolderOpen, Camera, Trash2, Settings } from 'lucide-react';
 import { usePhotoStore } from '@/lib/usePhotoStore';
 import { photoStore } from '@/lib/photoStore';
 import { formatSize } from '@/lib/formatSize';
-import { isNative, scanDirectory } from '@/lib/capacitorPhotos';
+import { isNative, scanDirectoryRecursive } from '@/lib/capacitorPhotos';
+import { pickDirectory } from '@/lib/directoryPicker';
 import EmptyState from '@/components/EmptyState';
 import FolderCard from '@/components/FolderCard';
-import FolderBrowser from '@/components/FolderBrowser';
 import PageTransition from '@/components/PageTransition';
 import { toast } from 'sonner';
 
@@ -18,7 +18,6 @@ export default function Home() {
   const folderNames = store.getFolderNames();
   const hasPhotos = store.getTotalPhotos() > 0;
   const savedMeta = photoStore.getSavedFolderMeta();
-  const [browserOpen, setBrowserOpen] = useState(false);
 
   // Auto-reload saved native folders on startup
   useEffect(() => {
@@ -39,17 +38,16 @@ export default function Home() {
     e.target.value = '';
   };
 
-  const handleNativeFolderSelect = async (dirPath) => {
-    try {
-      const photos = await scanDirectory(dirPath);
-      if (photos.length > 0) {
-        await photoStore.loadNativeFolders({ [dirPath]: photos });
-        toast.success(`Added ${photos.length} photos from ${dirPath.split('/').pop()}`);
-      } else {
-        toast.info('No photos found in this folder');
-      }
-    } catch {
-      toast.error('Failed to load photos');
+  const handleAddNativeFolder = async () => {
+    const path = await pickDirectory();
+    if (!path) return;
+    const folders = await scanDirectoryRecursive(path);
+    const count = Object.values(folders).reduce((s, arr) => s + arr.length, 0);
+    if (count > 0) {
+      await photoStore.loadNativeFolders(folders);
+      toast.success(`Added ${count} photos`);
+    } else {
+      toast.info('No photos found');
     }
   };
 
@@ -127,7 +125,7 @@ export default function Home() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.25 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => setBrowserOpen(true)}
+                onClick={handleAddNativeFolder}
                 className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors shadow-sm"
               >
                 <FolderOpen className="w-5 h-5 text-secondary-foreground" />
@@ -255,13 +253,6 @@ export default function Home() {
           </motion.button>
         ))}
       </div>
-
-      {/* Folder browser overlay (Android) */}
-      <FolderBrowser
-        open={browserOpen}
-        onClose={() => setBrowserOpen(false)}
-        onSelect={handleNativeFolderSelect}
-      />
     </PageTransition>
   );
 }

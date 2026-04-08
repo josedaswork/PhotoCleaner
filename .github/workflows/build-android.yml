@@ -50,15 +50,35 @@ jobs:
               <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />' \
             android/app/src/main/AndroidManifest.xml
 
+      - name: Add DirectoryPicker plugin
+        run: |
+          PKG="android/app/src/main/java/com/swipeclean/app"
+          cp resources/android/DirectoryPickerPlugin.java $PKG/DirectoryPickerPlugin.java
+
+          # Register plugin in MainActivity
+          sed -i '/import android.os.Bundle;/a import com.swipeclean.app.DirectoryPickerPlugin;' $PKG/MainActivity.java
+          sed -i '/super.onCreate/a \        registerPlugin(DirectoryPickerPlugin.class);' $PKG/MainActivity.java
+
       - name: Set custom app icon
         run: |
-          # Copy adaptive icon layers to drawable
-          cp resources/android/ic_launcher_background.xml android/app/src/main/res/drawable/ic_launcher_background.xml
-          cp resources/android/ic_launcher_foreground.xml android/app/src/main/res/drawable/ic_launcher_foreground.xml
+          RES="android/app/src/main/res"
+
+          # Remove all default PNG launcher icons
+          find $RES/mipmap-* -name "ic_launcher*.png" -delete 2>/dev/null || true
+          find $RES/mipmap-* -name "ic_launcher*.webp" -delete 2>/dev/null || true
+
+          # Copy vector drawable layers
+          cp resources/android/ic_launcher_background.xml $RES/drawable/ic_launcher_background.xml
+          cp resources/android/ic_launcher_foreground.xml $RES/drawable/ic_launcher_foreground.xml
+
           # Copy adaptive icon definition to mipmap-anydpi-v26
-          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
-          cp resources/android/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
-          cp resources/android/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          mkdir -p $RES/mipmap-anydpi-v26
+          cp resources/android/ic_launcher.xml $RES/mipmap-anydpi-v26/ic_launcher.xml
+          cp resources/android/ic_launcher.xml $RES/mipmap-anydpi-v26/ic_launcher_round.xml
+
+          # Also add to drawable-v24 as fallback
+          mkdir -p $RES/drawable-v24
+          cp resources/android/ic_launcher_foreground.xml $RES/drawable-v24/ic_launcher_foreground.xml
 
       - name: Build debug APK
         working-directory: android

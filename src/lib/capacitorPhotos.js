@@ -42,37 +42,37 @@ export async function scanDirectory(dirPath) {
   }
 }
 
-export async function discoverPhotoFolders() {
+/**
+ * Recursively scan a root path and return { folderPath: photos[] }
+ * Scans the root + one level of subdirectories.
+ */
+export async function scanDirectoryRecursive(rootPath) {
   if (!isNative()) return {};
+  const folders = {};
 
-  const found = {};
-  const baseDirs = ['DCIM', 'Pictures', 'Download'];
+  // Scan root for photos
+  const rootPhotos = await scanDirectory(rootPath);
+  if (rootPhotos.length > 0) folders[rootPath] = rootPhotos;
 
-  for (const base of baseDirs) {
-    // Scan the base dir for photos
-    const basePhotos = await scanDirectory(base);
-    if (basePhotos.length > 0) found[base] = basePhotos;
-
-    // Scan subdirectories
-    try {
-      const { Filesystem, Directory } = await import('@capacitor/filesystem');
-      const contents = await Filesystem.readdir({
-        path: base,
-        directory: Directory.ExternalStorage,
-      });
-      for (const item of contents.files) {
-        if (item.type === 'directory') {
-          const subPath = `${base}/${item.name}`;
-          const photos = await scanDirectory(subPath);
-          if (photos.length > 0) found[subPath] = photos;
-        }
+  // Scan subdirectories
+  try {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+    const contents = await Filesystem.readdir({
+      path: rootPath,
+      directory: Directory.ExternalStorage,
+    });
+    for (const item of contents.files) {
+      if (item.type === 'directory') {
+        const subPath = `${rootPath}/${item.name}`;
+        const photos = await scanDirectory(subPath);
+        if (photos.length > 0) folders[subPath] = photos;
       }
-    } catch {
-      // Directory doesn't exist or no permission
     }
+  } catch {
+    // ignore
   }
 
-  return found;
+  return folders;
 }
 
 export async function requestPermissions() {
