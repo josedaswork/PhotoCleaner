@@ -1,23 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, FolderOpen, Camera, Trash2, Settings } from 'lucide-react';
 import { usePhotoStore } from '@/lib/usePhotoStore';
+import { photoStore } from '@/lib/photoStore';
 import { formatSize } from '@/lib/formatSize';
+import { isNative, scanDirectory } from '@/lib/capacitorPhotos';
 import EmptyState from '@/components/EmptyState';
 import FolderCard from '@/components/FolderCard';
+import FolderBrowser from '@/components/FolderBrowser';
 import PageTransition from '@/components/PageTransition';
+import { toast } from 'sonner';
 
 export default function Home() {
   const store = usePhotoStore();
   const navigate = useNavigate();
   const folderNames = store.getFolderNames();
   const hasPhotos = store.getTotalPhotos() > 0;
+  const savedMeta = photoStore.getSavedFolderMeta();
+  const [browserOpen, setBrowserOpen] = useState(false);
+
+  // Auto-reload saved native folders on startup
+  useEffect(() => {
+    if (!hasPhotos && isNative()) {
+      const meta = photoStore.getSavedFolderMeta();
+      const nativePaths = Object.entries(meta)
+        .filter(([, info]) => info.isNative)
+        .map(([name]) => name);
+      if (nativePaths.length > 0) {
+        photoStore.loadFromNativePaths(nativePaths);
+      }
+    }
+  }, []);
 
   const handleSelectFolder = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) store.loadFromInput(files);
     e.target.value = '';
+  };
+
+  const handleNativeFolderSelect = async (dirPath) => {
+    try {
+      const photos = await scanDirectory(dirPath);
+      if (photos.length > 0) {
+        await photoStore.loadNativeFolders({ [dirPath]: photos });
+        toast.success(`Added ${photos.length} photos from ${dirPath.split('/').pop()}`);
+      } else {
+        toast.info('No photos found in this folder');
+      }
+    } catch {
+      toast.error('Failed to load photos');
+    }
   };
 
   if (!hasPhotos) {
@@ -51,7 +84,7 @@ export default function Home() {
             <Settings className="w-5 h-5 text-secondary-foreground" />
           </motion.button>
         </header>
-        <EmptyState onSelectFolder={handleSelectFolder} />
+        <EmptyState onSelectFolder={handleSelectFolder} savedMeta={savedMeta} />
       </PageTransition>
     );
   }
@@ -87,25 +120,39 @@ export default function Home() {
             >
               <Settings className="w-5 h-5 text-secondary-foreground" />
             </motion.button>
-            <motion.label
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 }}
-              whileTap={{ scale: 0.9 }}
-              className="cursor-pointer"
-            >
-            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors shadow-sm">
-              <FolderOpen className="w-5 h-5 text-secondary-foreground" />
-            </div>
-            <input
-              type="file"
-              webkitdirectory=""
-              directory=""
-              multiple
-              className="hidden"
-              onChange={handleSelectFolder}
-            />
-          </motion.label>
+            {/* Add folder button */}
+            {isNative() ? (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.25 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setBrowserOpen(true)}
+                className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors shadow-sm"
+              >
+                <FolderOpen className="w-5 h-5 text-secondary-foreground" />
+              </motion.button>
+            ) : (
+              <motion.label
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.25 }}
+                whileTap={{ scale: 0.9 }}
+                className="cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors shadow-sm">
+                  <FolderOpen className="w-5 h-5 text-secondary-foreground" />
+                </div>
+                <input
+                  type="file"
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                  className="hidden"
+                  onChange={handleSelectFolder}
+                />
+              </motion.label>
+            )}
           </div>
         </div>
       </header>
@@ -208,6 +255,13 @@ export default function Home() {
           </motion.button>
         ))}
       </div>
+
+      {/* Folder browser overlay (Android) */}
+      <FolderBrowser
+        open={browserOpen}
+        onClose={() => setBrowserOpen(false)}
+        onSelect={handleNativeFolderSelect}
+      />
     </PageTransition>
   );
 }
