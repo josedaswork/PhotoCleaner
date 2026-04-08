@@ -1,5 +1,7 @@
 let _folders = {};
 let _listeners = [];
+let _decisions = {};  // { folderName: { photoUrl: 'keep'|'discard' } }
+let _indices = {};    // { folderName: currentIndex }
 
 function notify() {
   _listeners.forEach(fn => fn());
@@ -82,6 +84,29 @@ export const photoStore = {
       .flat()
       .forEach(p => URL.revokeObjectURL(p.url));
     _folders = {};
+    _decisions = {};
+    _indices = {};
     notify();
+  },
+
+  getDecisions(folderName) {
+    return _decisions[folderName] || {};
+  },
+
+  setDecisions(folderName, decisions) {
+    _decisions[folderName] = decisions;
+  },
+
+  getIndex(folderName) {
+    return _indices[folderName] || 0;
+  },
+
+  setIndex(folderName, index) {
+    _indices[folderName] = index;
+  },
+
+  clearDecisions(folderName) {
+    delete _decisions[folderName];
+    delete _indices[folderName];
   },
 };

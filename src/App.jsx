@@ -4,6 +4,7 @@ import { Toaster } from 'sonner';
 import Home from '@/pages/Home';
 import CleanFolder from '@/pages/CleanFolder';
 import Duplicates from '@/pages/Duplicates';
+import Settings from '@/pages/Settings';
 import PageNotFound from '@/lib/PageNotFound';
 
 function AnimatedRoutes() {
@@ -14,6 +15,7 @@ function AnimatedRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/clean" element={<CleanFolder />} />
         <Route path="/duplicates" element={<Duplicates />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </AnimatePresence>

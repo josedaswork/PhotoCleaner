@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Trash2, Check, Wand2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Trash2, Check, Wand2, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePhotoStore } from '@/lib/usePhotoStore';
 import { formatSize } from '@/lib/formatSize';
@@ -55,6 +55,8 @@ export default function Duplicates() {
   const [groups, setGroups] = useState([]);
   const [selectedToDelete, setSelectedToDelete] = useState(new Set());
   const [showConfirm, setShowConfirm] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set());
+  const [activeGroupIndex, setActiveGroupIndex] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,6 +130,21 @@ export default function Duplicates() {
     });
     setSelectedToDelete(toDelete);
   };
+
+  const toggleCollapse = (gi) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(gi)) next.delete(gi);
+      else next.add(gi);
+      return next;
+    });
+  };
+
+  const collapseAll = () => setCollapsedGroups(new Set(groups.map((_, i) => i)));
+  const expandAll = () => setCollapsedGroups(new Set());
+
+  const selectedInGroup = (group) =>
+    group.filter(p => selectedToDelete.has(p.url)).length;
 
   const handleConfirmDelete = async () => {
     const count = photosToDelete.length;
@@ -223,7 +240,7 @@ export default function Duplicates() {
         /* Duplicate groups */
         <div className="flex-1 overflow-y-auto pb-32">
           {/* Auto-select banner */}
-          <div className="px-6 py-4">
+          <div className="px-5 py-4">
             <motion.button
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -231,10 +248,10 @@ export default function Duplicates() {
               onClick={autoSelectDuplicates}
               className="w-full text-left"
             >
-              <div className="bg-violet-50 rounded-2xl p-4 border border-violet-100">
+              <div className="bg-violet-50 dark:bg-violet-500/10 rounded-2xl p-4 border border-violet-100 dark:border-violet-500/20">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
-                    <Wand2 className="w-5 h-5 text-violet-600" />
+                  <div className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                    <Wand2 className="w-5 h-5 text-violet-600 dark:text-violet-400" />
                   </div>
                   <div>
                     <p className="font-semibold text-sm">Auto-select duplicates</p>
@@ -247,71 +264,141 @@ export default function Duplicates() {
             </motion.button>
           </div>
 
-          {/* Summary */}
-          <div className="px-6 mb-4">
+          {/* Summary & collapse controls */}
+          <div className="px-5 mb-4 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {groups.length} group{groups.length !== 1 ? 's' : ''} · {groups.reduce((s, g) => s + g.length, 0)} photos
             </p>
+            <div className="flex gap-2">
+              <button onClick={expandAll} className="text-xs text-primary font-medium">
+                Expand all
+              </button>
+              <span className="text-xs text-muted-foreground">·</span>
+              <button onClick={collapseAll} className="text-xs text-primary font-medium">
+                Collapse all
+              </button>
+            </div>
           </div>
 
           {/* Groups */}
-          {groups.map((group, gi) => (
-            <motion.div
-              key={gi}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: gi * 0.08 }}
-              className="px-6 mb-6"
-            >
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                Group {gi + 1} · {group.length} photos
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                {group.map((photo) => {
-                  const isSelected = selectedToDelete.has(photo.url);
-                  return (
-                    <motion.button
-                      key={photo.url}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => toggleSelect(photo.url)}
-                      className="relative aspect-square rounded-xl overflow-hidden bg-muted"
-                    >
-                      <img
-                        src={photo.url}
-                        alt={photo.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                      {/* Selection overlay */}
-                      <AnimatePresence>
-                        {isSelected && (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-red-500/30 flex items-center justify-center"
-                          >
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              exit={{ scale: 0 }}
-                              className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center shadow-lg"
-                            >
-                              <Trash2 className="w-4 h-4 text-white" />
-                            </motion.div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                      {/* Size badge */}
-                      <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-md backdrop-blur-sm">
-                        {formatSize(photo.size)}
+          <div className="px-5 space-y-4">
+            {groups.map((group, gi) => {
+              const isCollapsed = collapsedGroups.has(gi);
+              const selectedCount = selectedInGroup(group);
+              const groupSize = group.reduce((s, p) => s + p.size, 0);
+
+              return (
+                <motion.div
+                  key={gi}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: gi * 0.06 }}
+                  className="bg-card rounded-2xl border border-border/60 overflow-hidden"
+                >
+                  {/* Group header - clickable to collapse/expand */}
+                  <button
+                    onClick={() => toggleCollapse(gi)}
+                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-secondary/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                        <span className="text-xs font-bold text-muted-foreground">{gi + 1}</span>
                       </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </motion.div>
-          ))}
+                      <div className="text-left">
+                        <p className="text-sm font-medium">
+                          {group.length} similar photos
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatSize(groupSize)}
+                          {selectedCount > 0 && (
+                            <span className="text-red-500 ml-1.5">
+                              · {selectedCount} to delete
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* Mini preview when collapsed */}
+                      {isCollapsed && (
+                        <div className="flex -space-x-2">
+                          {group.slice(0, 3).map((photo) => (
+                            <img
+                              key={photo.url}
+                              src={photo.url}
+                              alt=""
+                              className="w-7 h-7 rounded-md object-cover border-2 border-card"
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {isCollapsed ? (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Group photos */}
+                  <AnimatePresence initial={false}>
+                    {!isCollapsed && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <div className="grid grid-cols-3 gap-1.5 p-3 pt-0">
+                          {group.map((photo) => {
+                            const isSelected = selectedToDelete.has(photo.url);
+                            return (
+                              <motion.button
+                                key={photo.url}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => toggleSelect(photo.url)}
+                                className="relative aspect-square rounded-xl overflow-hidden bg-muted"
+                              >
+                                <img
+                                  src={photo.url}
+                                  alt={photo.name}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                                <AnimatePresence>
+                                  {isSelected && (
+                                    <motion.div
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      exit={{ opacity: 0 }}
+                                      className="absolute inset-0 bg-red-500/30 flex items-center justify-center"
+                                    >
+                                      <motion.div
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        exit={{ scale: 0 }}
+                                        className="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center shadow-lg"
+                                      >
+                                        <Trash2 className="w-4 h-4 text-white" />
+                                      </motion.div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                                <div className="absolute bottom-1 left-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded-md backdrop-blur-sm">
+                                  {formatSize(photo.size)}
+                                </div>
+                              </motion.button>
+                            );
+                          })}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
       )}
 

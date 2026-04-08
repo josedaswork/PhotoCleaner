@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, FolderOpen, Camera, Trash2 } from 'lucide-react';
+import { Sparkles, FolderOpen, Camera, Trash2, Settings } from 'lucide-react';
 import { usePhotoStore } from '@/lib/usePhotoStore';
 import { formatSize } from '@/lib/formatSize';
 import EmptyState from '@/components/EmptyState';
@@ -23,7 +23,7 @@ export default function Home() {
   if (!hasPhotos) {
     return (
       <PageTransition className="min-h-screen flex flex-col safe-top">
-        <header className="px-6 pt-14 pb-4">
+        <header className="px-6 pt-14 pb-4 flex items-center justify-between">
           <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
@@ -40,6 +40,16 @@ export default function Home() {
               </p>
             </div>
           </motion.div>
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => navigate('/settings')}
+            className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors shadow-sm"
+          >
+            <Settings className="w-5 h-5 text-secondary-foreground" />
+          </motion.button>
         </header>
         <EmptyState onSelectFolder={handleSelectFolder} />
       </PageTransition>
@@ -66,13 +76,24 @@ export default function Home() {
               </div>
             </div>
           </motion.div>
-          <motion.label
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            whileTap={{ scale: 0.9 }}
-            className="cursor-pointer"
-          >
+          <div className="flex items-center gap-2">
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => navigate('/settings')}
+              className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors shadow-sm"
+            >
+              <Settings className="w-5 h-5 text-secondary-foreground" />
+            </motion.button>
+            <motion.label
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              whileTap={{ scale: 0.9 }}
+              className="cursor-pointer"
+            >
             <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors shadow-sm">
               <FolderOpen className="w-5 h-5 text-secondary-foreground" />
             </div>
@@ -85,6 +106,7 @@ export default function Home() {
               onChange={handleSelectFolder}
             />
           </motion.label>
+          </div>
         </div>
       </header>
 

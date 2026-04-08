@@ -1,8 +1,9 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { usePhotoStore } from '@/lib/usePhotoStore';
+import { photoStore } from '@/lib/photoStore';
 import SwipeCard from '@/components/SwipeCard';
 import CompletionScreen from '@/components/CompletionScreen';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -18,8 +19,8 @@ export default function CleanFolder() {
   const urlParams = new URLSearchParams(window.location.search);
   const folderName = urlParams.get('folder') || '';
   const photos = useMemo(() => store.getPhotos(folderName), [folderName, store]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [decisions, setDecisions] = useState({});
+  const [currentIndex, setCurrentIndex] = useState(() => photoStore.getIndex(folderName));
+  const [decisions, setDecisions] = useState(() => photoStore.getDecisions(folderName));
   const [showConfirm, setShowConfirm] = useState(false);
 
   const isComplete = currentIndex >= photos.length;
@@ -35,6 +36,12 @@ export default function CleanFolder() {
     (sum, p) => sum + p.size,
     0
   );
+
+  // Persist decisions and index to store on every change
+  useEffect(() => {
+    photoStore.setDecisions(folderName, decisions);
+    photoStore.setIndex(folderName, currentIndex);
+  }, [decisions, currentIndex, folderName]);
 
   const handleSwipe = useCallback(
     (direction) => {
@@ -61,6 +68,7 @@ export default function CleanFolder() {
     const count = discardedPhotos.length;
     const size = formatSize(discardedSize);
     store.removePhotos(discardedPhotos);
+    photoStore.clearDecisions(folderName);
     setShowConfirm(false);
     hapticSuccess();
     toast.success(`Deleted ${count} photos, freed ${size}`);
@@ -154,27 +162,42 @@ export default function CleanFolder() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="flex justify-between items-center px-10 py-5 flex-shrink-0"
+          className="flex flex-col items-center px-6 pb-5 pt-2 flex-shrink-0 gap-3"
         >
-          <motion.button
-            whileTap={{ scale: 0.85 }}
-            onClick={() => handleSwipe('discard')}
-            className="w-16 h-16 rounded-full bg-red-50 border-2 border-red-200 flex items-center justify-center hover:bg-red-100 active:bg-red-200 transition-all duration-200 shadow-sm"
-          >
-            <span className="text-red-500 text-2xl font-light">✕</span>
-          </motion.button>
+          <div className="flex justify-between items-center w-full px-4">
+            <motion.button
+              whileTap={{ scale: 0.85 }}
+              onClick={() => handleSwipe('discard')}
+              className="w-16 h-16 rounded-full bg-red-50 border-2 border-red-200 flex items-center justify-center hover:bg-red-100 active:bg-red-200 transition-all duration-200 shadow-sm"
+            >
+              <span className="text-red-500 text-2xl font-light">✕</span>
+            </motion.button>
 
-          <p className="text-xs text-muted-foreground font-medium">
-            Swipe to decide
-          </p>
+            <p className="text-xs text-muted-foreground font-medium">
+              Swipe to decide
+            </p>
 
-          <motion.button
-            whileTap={{ scale: 0.85 }}
-            onClick={() => handleSwipe('keep')}
-            className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center hover:bg-emerald-100 active:bg-emerald-200 transition-all duration-200 shadow-sm"
-          >
-            <span className="text-emerald-500 text-2xl font-light">♥</span>
-          </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.85 }}
+              onClick={() => handleSwipe('keep')}
+              className="w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-200 flex items-center justify-center hover:bg-emerald-100 active:bg-emerald-200 transition-all duration-200 shadow-sm"
+            >
+              <span className="text-emerald-500 text-2xl font-light">♥</span>
+            </motion.button>
+          </div>
+
+          {discardedPhotos.length > 0 && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-500 text-white text-sm font-medium shadow-sm"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete {discardedPhotos.length} photo{discardedPhotos.length > 1 ? 's' : ''} · {formatSize(discardedSize)}
+            </motion.button>
+          )}
         </motion.div>
       )}
 
