@@ -42,6 +42,16 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Set custom app icon
+        run: |
+          # Copy adaptive icon layers to drawable
+          cp resources/android/ic_launcher_background.xml android/app/src/main/res/drawable/ic_launcher_background.xml
+          cp resources/android/ic_launcher_foreground.xml android/app/src/main/res/drawable/ic_launcher_foreground.xml
+          # Copy adaptive icon definition to mipmap-anydpi-v26
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          cp resources/android/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          cp resources/android/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug
