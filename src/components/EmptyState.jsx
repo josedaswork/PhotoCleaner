@@ -24,7 +24,7 @@ export default function EmptyState({ onSelectFolder, savedMeta }) {
       const path = await pickDirectory();
       if (!path) {
         setLoading(false);
-        return;
+        return; // User cancelled
       }
 
       const folders = await scanDirectoryRecursive(path);
@@ -37,7 +37,8 @@ export default function EmptyState({ onSelectFolder, savedMeta }) {
         toast.info('No photos found in this folder');
       }
     } catch (e) {
-      toast.error('Failed to load photos');
+      console.error('Folder pick error:', e);
+      toast.error('Error: ' + (e.message || 'Failed to open folder picker'));
     }
     setLoading(false);
   };

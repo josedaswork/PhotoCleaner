@@ -5,14 +5,10 @@ const DirectoryPicker = registerPlugin('DirectoryPicker');
 /**
  * Opens the native Android directory picker (SAF).
  * Returns the path relative to external storage (e.g. "DCIM/Camera").
- * Returns null if cancelled or not on native.
+ * Throws on error, returns null if cancelled.
  */
 export async function pickDirectory() {
   if (!Capacitor.isNativePlatform()) return null;
-  try {
-    const result = await DirectoryPicker.pick();
-    return result?.path || null;
-  } catch {
-    return null;
-  }
+  const result = await DirectoryPicker.pick();
+  return result?.path || null;
 }
