@@ -117,4 +117,3 @@ export default function SwipeCard({ photo, onSwipe, isTop }) {
   if (!isTop) return <BackCard photo={photo} />;
   return <TopCard photo={photo} onSwipe={onSwipe} />;
 }
-}
