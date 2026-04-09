@@ -1,17 +1,33 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, memo } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import { hapticLight, hapticMedium } from '@/lib/haptics';
 
-export default function SwipeCard({ photo, onSwipe, isTop }) {
+const BackCard = memo(function BackCard({ photo }) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center p-4 gpu-accelerated">
+      <div
+        className="relative w-full h-full max-w-lg rounded-3xl overflow-hidden bg-muted shadow-lg"
+        style={{ transform: 'scale(0.95)', opacity: 0.5 }}
+      >
+        <img
+          src={photo.url}
+          alt={photo.name}
+          className="w-full h-full object-contain bg-black/5"
+          draggable={false}
+          decoding="async"
+        />
+      </div>
+    </div>
+  );
+});
+
+const TopCard = memo(function TopCard({ photo, onSwipe }) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
-  const opacity = useTransform(x, [-350, -150, 0, 150, 350], [0.3, 1, 1, 1, 0.3]);
-  const scale = useTransform(x, [-300, 0, 300], [0.95, 1, 0.95]);
   const keepOpacity = useTransform(x, [0, 80, 180], [0, 0.5, 1]);
   const discardOpacity = useTransform(x, [-180, -80, 0], [1, 0.5, 0]);
   const keepScale = useTransform(x, [0, 120, 200], [0.5, 0.9, 1]);
   const discardScale = useTransform(x, [-200, -120, 0], [1, 0.9, 0.5]);
-  const constraintsRef = useRef(null);
   const hasTriggeredHaptic = useRef(false);
 
   const handleDrag = useCallback((_, info) => {
@@ -29,50 +45,26 @@ export default function SwipeCard({ photo, onSwipe, isTop }) {
     const threshold = 120;
     if (info.offset.x > threshold) {
       hapticMedium();
-      animate(x, 600, { duration: 0.35, ease: [0.32, 0.72, 0, 1] });
-      setTimeout(() => onSwipe('keep'), 300);
+      animate(x, 600, { duration: 0.25, ease: [0.32, 0.72, 0, 1] });
+      setTimeout(() => onSwipe('keep'), 200);
     } else if (info.offset.x < -threshold) {
       hapticMedium();
-      animate(x, -600, { duration: 0.35, ease: [0.32, 0.72, 0, 1] });
-      setTimeout(() => onSwipe('discard'), 300);
+      animate(x, -600, { duration: 0.25, ease: [0.32, 0.72, 0, 1] });
+      setTimeout(() => onSwipe('discard'), 200);
     } else {
       animate(x, 0, { type: 'spring', stiffness: 600, damping: 35 });
     }
   }, [x, onSwipe]);
 
-  if (!isTop) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center p-4 gpu-accelerated">
-        <motion.div
-          initial={{ scale: 0.92, opacity: 0.4 }}
-          animate={{ scale: 0.95, opacity: 0.5 }}
-          transition={{ duration: 0.3 }}
-          className="relative w-full h-full max-w-lg rounded-3xl overflow-hidden bg-muted shadow-lg"
-        >
-          <img
-            src={photo.url}
-            alt={photo.name}
-            className="w-full h-full object-contain bg-black/5"
-            draggable={false}
-            loading="lazy"
-          />
-        </motion.div>
-      </div>
-    );
-  }
-
   return (
-    <div ref={constraintsRef} className="absolute inset-0 flex items-center justify-center p-4">
+    <div className="absolute inset-0 flex items-center justify-center p-4">
       <motion.div
-        style={{ x, rotate, opacity, scale }}
+        style={{ x, rotate }}
         drag="x"
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.85}
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
         className="relative w-full h-full max-w-lg cursor-grab active:cursor-grabbing gpu-accelerated"
       >
         <div className="relative w-full h-full rounded-3xl overflow-hidden bg-card shadow-2xl ring-1 ring-black/5">
@@ -81,6 +73,7 @@ export default function SwipeCard({ photo, onSwipe, isTop }) {
             alt={photo.name}
             className="w-full h-full object-contain"
             draggable={false}
+            decoding="async"
           />
 
           {/* Keep overlay */}
@@ -118,4 +111,10 @@ export default function SwipeCard({ photo, onSwipe, isTop }) {
       </motion.div>
     </div>
   );
+});
+
+export default function SwipeCard({ photo, onSwipe, isTop }) {
+  if (!isTop) return <BackCard photo={photo} />;
+  return <TopCard photo={photo} onSwipe={onSwipe} />;
+}
 }

@@ -18,26 +18,44 @@ export default function CleanFolder() {
   const store = usePhotoStore();
   const urlParams = new URLSearchParams(window.location.search);
   const folderName = urlParams.get('folder') || '';
-  const photos = useMemo(() => store.getPhotos(folderName), [folderName, store]);
-  const [currentIndex, setCurrentIndex] = useState(() => photoStore.getIndex(folderName));
+  const allPhotos = useMemo(() => store.getPhotos(folderName), [folderName, store]);
   const [decisions, setDecisions] = useState(() => photoStore.getDecisions(folderName));
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const isComplete = currentIndex >= photos.length;
+  // Filter out photos that already have a decision
+  const undecidedPhotos = useMemo(
+    () => allPhotos.filter(p => !decisions[p.url]),
+    [allPhotos, decisions]
+  );
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const isComplete = currentIndex >= undecidedPhotos.length;
   const discardedPhotos = useMemo(
-    () => photos.filter(p => decisions[p.url] === 'discard'),
-    [photos, decisions]
+    () => allPhotos.filter(p => decisions[p.url] === 'discard'),
+    [allPhotos, decisions]
   );
   const keptPhotos = useMemo(
-    () => photos.filter(p => decisions[p.url] === 'keep'),
-    [photos, decisions]
+    () => allPhotos.filter(p => decisions[p.url] === 'keep'),
+    [allPhotos, decisions]
   );
   const discardedSize = discardedPhotos.reduce(
     (sum, p) => sum + p.size,
     0
   );
 
-  // Persist decisions and index to store on every change
+  // Preload upcoming images
+  useEffect(() => {
+    const preloadCount = 3;
+    for (let i = 1; i <= preloadCount; i++) {
+      const idx = currentIndex + i;
+      if (idx < undecidedPhotos.length) {
+        const img = new Image();
+        img.src = undecidedPhotos[idx].url;
+      }
+    }
+  }, [currentIndex, undecidedPhotos]);
+
+  // Persist decisions to store on change
   useEffect(() => {
     photoStore.setDecisions(folderName, decisions);
     photoStore.setIndex(folderName, currentIndex);
@@ -45,17 +63,17 @@ export default function CleanFolder() {
 
   const handleSwipe = useCallback(
     (direction) => {
-      if (currentIndex >= photos.length) return;
-      const photo = photos[currentIndex];
+      if (currentIndex >= undecidedPhotos.length) return;
+      const photo = undecidedPhotos[currentIndex];
       setDecisions(prev => ({ ...prev, [photo.url]: direction }));
       setCurrentIndex(prev => prev + 1);
     },
-    [currentIndex, photos]
+    [currentIndex, undecidedPhotos]
   );
 
   const handleUndo = () => {
     if (currentIndex <= 0) return;
-    const photo = photos[currentIndex - 1];
+    const photo = undecidedPhotos[currentIndex - 1];
     setDecisions(prev => {
       const next = { ...prev };
       delete next[photo.url];
@@ -76,7 +94,9 @@ export default function CleanFolder() {
     navigate('/');
   };
 
-  const progress = photos.length > 0 ? (currentIndex / photos.length) * 100 : 0;
+  const totalToReview = undecidedPhotos.length;
+  const progress = totalToReview > 0 ? (currentIndex / totalToReview) * 100 : 0;
+  const totalDecided = Object.keys(decisions).length;
 
   return (
     <PageTransition className="h-screen flex flex-col bg-background safe-top safe-bottom">
@@ -98,7 +118,8 @@ export default function CleanFolder() {
               animate={{ opacity: 1, y: 0 }}
               className="text-xs text-muted-foreground"
             >
-              {currentIndex + 1} of {photos.length}
+              {currentIndex + 1} of {totalToReview}
+              {totalDecided > 0 && ` · ${keptPhotos.length}✓ ${discardedPhotos.length}✕`}
             </motion.p>
           )}
         </div>
@@ -138,17 +159,17 @@ export default function CleanFolder() {
         />
       ) : (
         <div className="flex-1 relative overflow-hidden">
-          {currentIndex + 1 < photos.length && (
+          {currentIndex + 1 < undecidedPhotos.length && (
             <SwipeCard
-              key={photos[currentIndex + 1].url}
-              photo={photos[currentIndex + 1]}
+              key={undecidedPhotos[currentIndex + 1].url}
+              photo={undecidedPhotos[currentIndex + 1]}
               isTop={false}
             />
           )}
           <AnimatePresence>
             <SwipeCard
-              key={photos[currentIndex].url}
-              photo={photos[currentIndex]}
+              key={undecidedPhotos[currentIndex].url}
+              photo={undecidedPhotos[currentIndex]}
               onSwipe={handleSwipe}
               isTop={true}
             />
