@@ -1,15 +1,17 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Check, Trash2, RotateCcw } from 'lucide-react';
+import { Check, Trash2, RotateCcw, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatSize } from '@/lib/formatSize';
 
 export default function CompletionScreen({
   keptCount,
+  foreverCount,
   discardedCount,
   discardedSize,
   onDone,
   onReview,
+  onBack,
 }) {
   return (
     <motion.div
@@ -57,7 +59,7 @@ export default function CompletionScreen({
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.5 }}
-        className="flex gap-12 mb-10"
+        className="flex gap-8 mb-10"
       >
         <div className="text-center">
           <motion.p
@@ -70,6 +72,22 @@ export default function CompletionScreen({
           </motion.p>
           <p className="text-xs text-muted-foreground mt-1 font-medium uppercase tracking-wider">Kept</p>
         </div>
+        {foreverCount > 0 && (
+          <>
+            <div className="w-px bg-border" />
+            <div className="text-center">
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.65 }}
+                className="text-4xl font-bold text-amber-500"
+              >
+                {foreverCount}
+              </motion.p>
+              <p className="text-xs text-muted-foreground mt-1 font-medium uppercase tracking-wider">Forever</p>
+            </div>
+          </>
+        )}
         <div className="w-px bg-border" />
         <div className="text-center">
           <motion.p
@@ -122,6 +140,14 @@ export default function CompletionScreen({
         >
           <RotateCcw className="w-4 h-4 mr-2" />
           {discardedCount > 0 ? 'Review choices' : 'Go back'}
+        </Button>
+        <Button
+          onClick={onBack}
+          variant="ghost"
+          className="w-full h-13 rounded-2xl text-base text-muted-foreground"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to folders
         </Button>
       </motion.div>
     </motion.div>

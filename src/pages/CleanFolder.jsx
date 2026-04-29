@@ -45,6 +45,10 @@ export default function CleanFolder() {
     () => allPhotos.filter(p => decisions[p.url] === 'keep'),
     [allPhotos, decisions]
   );
+  const foreverPhotos = useMemo(
+    () => allPhotos.filter(p => decisions[p.url] === 'forever'),
+    [allPhotos, decisions]
+  );
   const discardedSize = discardedPhotos.reduce(
     (sum, p) => sum + p.size,
     0
@@ -123,7 +127,7 @@ export default function CleanFolder() {
               className="text-xs text-muted-foreground"
             >
               {totalDecided + 1} of {allPhotos.length}
-              {totalDecided > 0 && ` · ${keptPhotos.length}✓ ${discardedPhotos.length}✕`}
+              {totalDecided > 0 && ` · ${keptPhotos.length}✓ ${foreverPhotos.length}⭐ ${discardedPhotos.length}✕`}
             </motion.p>
           )}
         </div>
@@ -153,6 +157,7 @@ export default function CleanFolder() {
       {isComplete ? (
         <CompletionScreen
           keptCount={keptPhotos.length}
+          foreverCount={foreverPhotos.length}
           discardedCount={discardedPhotos.length}
           discardedSize={discardedSize}
           onDone={() => setShowConfirm(true)}
@@ -160,6 +165,7 @@ export default function CleanFolder() {
             setHistory([]);
             setDecisions({});
           }}
+          onBack={() => navigate('/')}
         />
       ) : (
         <div className="flex-1 relative overflow-hidden">
@@ -198,9 +204,13 @@ export default function CleanFolder() {
               <span className="text-red-500 text-2xl font-light">✕</span>
             </motion.button>
 
-            <p className="text-xs text-muted-foreground font-medium">
-              Swipe to decide
-            </p>
+            <motion.button
+              whileTap={{ scale: 0.85 }}
+              onClick={() => handleSwipe('forever')}
+              className="w-12 h-12 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center hover:bg-amber-100 active:bg-amber-200 transition-all duration-200 shadow-sm"
+            >
+              <span className="text-amber-500 text-lg">⭐</span>
+            </motion.button>
 
             <motion.button
               whileTap={{ scale: 0.85 }}

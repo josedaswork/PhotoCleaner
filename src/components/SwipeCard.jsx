@@ -1,10 +1,11 @@
 /**
  * @history
  * 2026-04-29 - No changes; reviewed as part of swipe counter fix.
+ * 2026-04-29 - Added upward swipe gesture for 'forever' (keep forever) decision.
  */
 import React, { useRef, useCallback, memo } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
-import { hapticLight, hapticMedium } from '@/lib/haptics';
+import { hapticLight, hapticMedium, hapticHeavy } from '@/lib/haptics';
 
 const BackCard = memo(function BackCard({ photo }) {
   return (
@@ -27,45 +28,60 @@ const BackCard = memo(function BackCard({ photo }) {
 
 const TopCard = memo(function TopCard({ photo, onSwipe }) {
   const x = useMotionValue(0);
+  const y = useMotionValue(0);
   const rotate = useTransform(x, [-300, 0, 300], [-15, 0, 15]);
   const keepOpacity = useTransform(x, [0, 80, 180], [0, 0.5, 1]);
   const discardOpacity = useTransform(x, [-180, -80, 0], [1, 0.5, 0]);
   const keepScale = useTransform(x, [0, 120, 200], [0.5, 0.9, 1]);
   const discardScale = useTransform(x, [-200, -120, 0], [1, 0.9, 0.5]);
+  const foreverOpacity = useTransform(y, [-180, -80, 0], [1, 0.5, 0]);
+  const foreverScale = useTransform(y, [-200, -120, 0], [1, 0.9, 0.5]);
   const hasTriggeredHaptic = useRef(false);
 
   const handleDrag = useCallback((_, info) => {
     const threshold = 100;
-    if (Math.abs(info.offset.x) > threshold && !hasTriggeredHaptic.current) {
+    const dominant = Math.abs(info.offset.y) > Math.abs(info.offset.x)
+      ? Math.abs(info.offset.y)
+      : Math.abs(info.offset.x);
+    if (dominant > threshold && !hasTriggeredHaptic.current) {
       hasTriggeredHaptic.current = true;
       hapticLight();
-    } else if (Math.abs(info.offset.x) <= threshold) {
+    } else if (dominant <= threshold) {
       hasTriggeredHaptic.current = false;
     }
   }, []);
 
   const handleDragEnd = useCallback((_, info) => {
     hasTriggeredHaptic.current = false;
-    const threshold = 120;
-    if (info.offset.x > threshold) {
+    const thresholdX = 120;
+    const thresholdY = 120;
+
+    // Upward swipe takes priority if dominant
+    if (info.offset.y < -thresholdY && Math.abs(info.offset.y) > Math.abs(info.offset.x)) {
+      hapticHeavy();
+      animate(y, -800, { duration: 0.3, ease: [0.32, 0.72, 0, 1] });
+      animate(x, 0, { duration: 0.3 });
+      setTimeout(() => onSwipe('forever'), 200);
+    } else if (info.offset.x > thresholdX) {
       hapticMedium();
       animate(x, 600, { duration: 0.25, ease: [0.32, 0.72, 0, 1] });
       setTimeout(() => onSwipe('keep'), 200);
-    } else if (info.offset.x < -threshold) {
+    } else if (info.offset.x < -thresholdX) {
       hapticMedium();
       animate(x, -600, { duration: 0.25, ease: [0.32, 0.72, 0, 1] });
       setTimeout(() => onSwipe('discard'), 200);
     } else {
       animate(x, 0, { type: 'spring', stiffness: 600, damping: 35 });
+      animate(y, 0, { type: 'spring', stiffness: 600, damping: 35 });
     }
-  }, [x, onSwipe]);
+  }, [x, y, onSwipe]);
 
   return (
     <div className="absolute inset-0 flex items-center justify-center p-4">
       <motion.div
-        style={{ x, rotate }}
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
+        style={{ x, y, rotate }}
+        drag
+        dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
         dragElastic={0.85}
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
@@ -103,6 +119,19 @@ const TopCard = memo(function TopCard({ photo, onSwipe }) {
               className="bg-red-500/90 text-white text-2xl font-bold px-8 py-3 rounded-2xl rotate-[12deg] shadow-lg backdrop-blur-sm"
             >
               DELETE ✕
+            </motion.div>
+          </motion.div>
+
+          {/* Forever overlay */}
+          <motion.div
+            style={{ opacity: foreverOpacity }}
+            className="absolute inset-0 bg-amber-500/10 pointer-events-none flex items-center justify-center"
+          >
+            <motion.div
+              style={{ scale: foreverScale }}
+              className="bg-amber-500/90 text-white text-2xl font-bold px-8 py-3 rounded-2xl shadow-lg backdrop-blur-sm"
+            >
+              FOREVER ⭐
             </motion.div>
           </motion.div>
         </div>
