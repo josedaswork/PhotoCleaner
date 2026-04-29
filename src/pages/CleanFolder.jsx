@@ -1,3 +1,10 @@
+/**
+ * @history
+ * 2026-04-29 - Fix: removed currentIndex to prevent double-advance bug.
+ *              undecidedPhotos now auto-shrinks on decision; always show [0].
+ *              Added history stack for undo. Fixed counter and progress bar.
+ * 2026-04-29 - Fix: replaced leftover currentIndex key reference with totalDecided.
+ */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, RotateCcw, Trash2 } from 'lucide-react';
@@ -21,15 +28,15 @@ export default function CleanFolder() {
   const allPhotos = useMemo(() => store.getPhotos(folderName), [folderName, store]);
   const [decisions, setDecisions] = useState(() => photoStore.getDecisions(folderName));
   const [showConfirm, setShowConfirm] = useState(false);
+  const [history, setHistory] = useState([]);
 
   // Filter out photos that already have a decision
   const undecidedPhotos = useMemo(
     () => allPhotos.filter(p => !decisions[p.url]),
     [allPhotos, decisions]
   );
-  const [currentIndex, setCurrentIndex] = useState(0);
 
-  const isComplete = currentIndex >= undecidedPhotos.length;
+  const isComplete = undecidedPhotos.length === 0;
   const discardedPhotos = useMemo(
     () => allPhotos.filter(p => decisions[p.url] === 'discard'),
     [allPhotos, decisions]
@@ -47,39 +54,37 @@ export default function CleanFolder() {
   useEffect(() => {
     const preloadCount = 3;
     for (let i = 1; i <= preloadCount; i++) {
-      const idx = currentIndex + i;
-      if (idx < undecidedPhotos.length) {
+      if (i < undecidedPhotos.length) {
         const img = new Image();
-        img.src = undecidedPhotos[idx].url;
+        img.src = undecidedPhotos[i].url;
       }
     }
-  }, [currentIndex, undecidedPhotos]);
+  }, [undecidedPhotos]);
 
   // Persist decisions to store on change
   useEffect(() => {
     photoStore.setDecisions(folderName, decisions);
-    photoStore.setIndex(folderName, currentIndex);
-  }, [decisions, currentIndex, folderName]);
+  }, [decisions, folderName]);
 
   const handleSwipe = useCallback(
     (direction) => {
-      if (currentIndex >= undecidedPhotos.length) return;
-      const photo = undecidedPhotos[currentIndex];
+      if (undecidedPhotos.length === 0) return;
+      const photo = undecidedPhotos[0];
       setDecisions(prev => ({ ...prev, [photo.url]: direction }));
-      setCurrentIndex(prev => prev + 1);
+      setHistory(prev => [...prev, photo.url]);
     },
-    [currentIndex, undecidedPhotos]
+    [undecidedPhotos]
   );
 
   const handleUndo = () => {
-    if (currentIndex <= 0) return;
-    const photo = undecidedPhotos[currentIndex - 1];
+    if (history.length === 0) return;
+    const lastUrl = history[history.length - 1];
+    setHistory(prev => prev.slice(0, -1));
     setDecisions(prev => {
       const next = { ...prev };
-      delete next[photo.url];
+      delete next[lastUrl];
       return next;
     });
-    setCurrentIndex(prev => prev - 1);
   };
 
   const handleConfirmDelete = async () => {
@@ -94,9 +99,8 @@ export default function CleanFolder() {
     navigate('/');
   };
 
-  const totalToReview = undecidedPhotos.length;
-  const progress = totalToReview > 0 ? (currentIndex / totalToReview) * 100 : 0;
   const totalDecided = Object.keys(decisions).length;
+  const progress = allPhotos.length > 0 ? (totalDecided / allPhotos.length) * 100 : 0;
 
   return (
     <PageTransition className="h-screen flex flex-col bg-background safe-top safe-bottom">
@@ -113,12 +117,12 @@ export default function CleanFolder() {
           <p className="text-sm font-semibold truncate max-w-[200px]">{folderName}</p>
           {!isComplete && (
             <motion.p
-              key={currentIndex}
+              key={totalDecided}
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               className="text-xs text-muted-foreground"
             >
-              {currentIndex + 1} of {totalToReview}
+              {totalDecided + 1} of {allPhotos.length}
               {totalDecided > 0 && ` · ${keptPhotos.length}✓ ${discardedPhotos.length}✕`}
             </motion.p>
           )}
@@ -126,7 +130,7 @@ export default function CleanFolder() {
         <motion.button
           whileTap={{ scale: 0.85 }}
           onClick={handleUndo}
-          disabled={currentIndex === 0}
+          disabled={history.length === 0}
           className="p-2.5 -mr-2 rounded-full hover:bg-secondary transition-colors disabled:opacity-30"
         >
           <RotateCcw className="w-5 h-5" />
@@ -153,23 +157,23 @@ export default function CleanFolder() {
           discardedSize={discardedSize}
           onDone={() => setShowConfirm(true)}
           onReview={() => {
-            setCurrentIndex(0);
+            setHistory([]);
             setDecisions({});
           }}
         />
       ) : (
         <div className="flex-1 relative overflow-hidden">
-          {currentIndex + 1 < undecidedPhotos.length && (
+          {undecidedPhotos.length > 1 && (
             <SwipeCard
-              key={undecidedPhotos[currentIndex + 1].url}
-              photo={undecidedPhotos[currentIndex + 1]}
+              key={undecidedPhotos[1].url}
+              photo={undecidedPhotos[1]}
               isTop={false}
             />
           )}
           <AnimatePresence>
             <SwipeCard
-              key={undecidedPhotos[currentIndex].url}
-              photo={undecidedPhotos[currentIndex]}
+              key={undecidedPhotos[0].url}
+              photo={undecidedPhotos[0]}
               onSwipe={handleSwipe}
               isTop={true}
             />

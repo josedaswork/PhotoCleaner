@@ -1,3 +1,7 @@
+/**
+ * @history
+ * 2026-04-29 - No changes; reviewed as part of swipe counter fix.
+ */
 import React, { useRef, useCallback, memo } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import { hapticLight, hapticMedium } from '@/lib/haptics';

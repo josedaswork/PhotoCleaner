@@ -1,3 +1,8 @@
+/**
+ * @history
+ * 2026-04-29 - Cleanup: removed unused _indices, getIndex(), setIndex().
+ *              currentIndex tracking moved to component-level history stack.
+ */
 import { isNative, scanDirectory } from './capacitorPhotos';
 
 const PERSIST_KEY = 'swipeclean-saved-folders';
@@ -5,7 +10,6 @@ const PERSIST_KEY = 'swipeclean-saved-folders';
 let _folders = {};
 let _listeners = [];
 let _decisions = {};  // { folderName: { photoUrl: 'keep'|'discard' } }
-let _indices = {};    // { folderName: currentIndex }
 
 function notify() {
   _listeners.forEach(fn => fn());
@@ -142,7 +146,6 @@ export const photoStore = {
       });
     _folders = {};
     _decisions = {};
-    _indices = {};
     localStorage.removeItem(PERSIST_KEY);
     notify();
   },
@@ -155,16 +158,7 @@ export const photoStore = {
     _decisions[folderName] = decisions;
   },
 
-  getIndex(folderName) {
-    return _indices[folderName] || 0;
-  },
-
-  setIndex(folderName, index) {
-    _indices[folderName] = index;
-  },
-
   clearDecisions(folderName) {
     delete _decisions[folderName];
-    delete _indices[folderName];
   },
 };
