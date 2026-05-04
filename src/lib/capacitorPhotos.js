@@ -60,8 +60,11 @@ export async function scanDirectory(dirPath) {
         folder: dirPath,
         url,
         nativePath: fullPath,
+        lastModified: file.mtime || 0,
       });
     }
+    // Sort chronologically (oldest first)
+    photos.sort((a, b) => a.lastModified - b.lastModified);
     return photos;
   } catch (e) {
     console.warn(`Failed to scan ${dirPath}:`, e);

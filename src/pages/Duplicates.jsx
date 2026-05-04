@@ -146,14 +146,14 @@ export default function Duplicates() {
   const selectedInGroup = (group) =>
     group.filter(p => selectedToDelete.has(p.url)).length;
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     const count = photosToDelete.length;
     const size = formatSize(totalDeleteSize);
     store.removePhotos(photosToDelete);
     setShowConfirm(false);
     hapticSuccess();
     toast.success(`Deleted ${count} duplicates, freed ${size}`);
-    await notifyCleanupComplete(count, size);
+    notifyCleanupComplete(count, size);
     navigate('/');
   };
 

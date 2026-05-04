@@ -5,16 +5,17 @@
  *              Added history stack for undo. Fixed counter and progress bar.
  * 2026-04-29 - Fix: replaced leftover currentIndex key reference with totalDecided.
  */
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RotateCcw, Trash2 } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, RotateCcw, Trash2, Grid3X3 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { usePhotoStore } from '@/lib/usePhotoStore';
 import { photoStore } from '@/lib/photoStore';
 import SwipeCard from '@/components/SwipeCard';
 import CompletionScreen from '@/components/CompletionScreen';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PageTransition from '@/components/PageTransition';
+import PhotoGridBrowser from '@/components/PhotoGridBrowser';
 import { hapticSuccess } from '@/lib/haptics';
 import { notifyCleanupComplete } from '@/lib/notifications';
 import { formatSize } from '@/lib/formatSize';
@@ -23,18 +24,27 @@ import { toast } from 'sonner';
 export default function CleanFolder() {
   const navigate = useNavigate();
   const store = usePhotoStore();
-  const urlParams = new URLSearchParams(window.location.search);
-  const folderName = urlParams.get('folder') || '';
+  const [searchParams] = useSearchParams();
+  const folderNameRef = useRef(searchParams.get('folder') || '');
+  const folderName = folderNameRef.current;
   const allPhotos = useMemo(() => store.getPhotos(folderName), [folderName, store]);
   const [decisions, setDecisions] = useState(() => photoStore.getDecisions(folderName));
   const [showConfirm, setShowConfirm] = useState(false);
   const [history, setHistory] = useState([]);
+  const [showGrid, setShowGrid] = useState(false);
+  const [startFromIndex, setStartFromIndex] = useState(null);
 
-  // Filter out photos that already have a decision
-  const undecidedPhotos = useMemo(
-    () => allPhotos.filter(p => !decisions[p.url]),
-    [allPhotos, decisions]
-  );
+  // Filter out photos that already have a decision, rotate to startFromIndex in allPhotos
+  const undecidedPhotos = useMemo(() => {
+    const undecided = allPhotos.filter(p => !decisions[p.url]);
+    if (startFromIndex == null) return undecided;
+    // Build a map of url -> index in allPhotos for ordering
+    const allIndexMap = new Map(allPhotos.map((p, i) => [p.url, i]));
+    // Find the first undecided photo whose original index >= startFromIndex
+    const rotateIdx = undecided.findIndex(p => allIndexMap.get(p.url) >= startFromIndex);
+    if (rotateIdx <= 0) return undecided;
+    return [...undecided.slice(rotateIdx), ...undecided.slice(0, rotateIdx)];
+  }, [allPhotos, decisions, startFromIndex]);
 
   const isComplete = undecidedPhotos.length === 0;
   const discardedPhotos = useMemo(
@@ -91,7 +101,7 @@ export default function CleanFolder() {
     });
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     const count = discardedPhotos.length;
     const size = formatSize(discardedSize);
     store.removePhotos(discardedPhotos);
@@ -99,7 +109,7 @@ export default function CleanFolder() {
     setShowConfirm(false);
     hapticSuccess();
     toast.success(`Deleted ${count} photos, freed ${size}`);
-    await notifyCleanupComplete(count, size);
+    notifyCleanupComplete(count, size);
     navigate('/');
   };
 
@@ -139,6 +149,13 @@ export default function CleanFolder() {
         >
           <RotateCcw className="w-5 h-5" />
         </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.85 }}
+          onClick={() => setShowGrid(true)}
+          className="p-2.5 rounded-full hover:bg-secondary transition-colors"
+        >
+          <Grid3X3 className="w-5 h-5" />
+        </motion.button>
       </header>
 
       {/* Progress bar */}
@@ -176,14 +193,12 @@ export default function CleanFolder() {
               isTop={false}
             />
           )}
-          <AnimatePresence>
-            <SwipeCard
-              key={undecidedPhotos[0].url}
-              photo={undecidedPhotos[0]}
-              onSwipe={handleSwipe}
-              isTop={true}
-            />
-          </AnimatePresence>
+          <SwipeCard
+            key={undecidedPhotos[0].url}
+            photo={undecidedPhotos[0]}
+            onSwipe={handleSwipe}
+            isTop={true}
+          />
         </div>
       )}
 
@@ -242,6 +257,19 @@ export default function CleanFolder() {
         onClose={() => setShowConfirm(false)}
         onConfirm={handleConfirmDelete}
         discardedPhotos={discardedPhotos}
+      />
+
+      {/* Photo grid browser */}
+      <PhotoGridBrowser
+        open={showGrid}
+        photos={allPhotos}
+        decisions={decisions}
+        onSelect={(photo) => {
+          const idx = allPhotos.findIndex(p => p.url === photo.url);
+          setStartFromIndex(idx >= 0 ? idx : null);
+          setShowGrid(false);
+        }}
+        onClose={() => setShowGrid(false)}
       />
     </PageTransition>
   );

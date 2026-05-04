@@ -92,7 +92,12 @@ export const photoStore = {
         size: file.size,
         folder: folderName,
         path,
+        lastModified: file.lastModified || 0,
       });
+    }
+    // Sort each folder chronologically (oldest first)
+    for (const name of Object.keys(_folders)) {
+      _folders[name].sort((a, b) => (a.lastModified || 0) - (b.lastModified || 0));
     }
     saveFolderMeta();
     notify();

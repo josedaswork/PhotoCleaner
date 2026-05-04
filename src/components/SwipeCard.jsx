@@ -61,15 +61,15 @@ const TopCard = memo(function TopCard({ photo, onSwipe }) {
       hapticHeavy();
       animate(y, -800, { duration: 0.3, ease: [0.32, 0.72, 0, 1] });
       animate(x, 0, { duration: 0.3 });
-      setTimeout(() => onSwipe('forever'), 200);
+      onSwipe('forever');
     } else if (info.offset.x > thresholdX) {
       hapticMedium();
       animate(x, 600, { duration: 0.25, ease: [0.32, 0.72, 0, 1] });
-      setTimeout(() => onSwipe('keep'), 200);
+      onSwipe('keep');
     } else if (info.offset.x < -thresholdX) {
       hapticMedium();
       animate(x, -600, { duration: 0.25, ease: [0.32, 0.72, 0, 1] });
-      setTimeout(() => onSwipe('discard'), 200);
+      onSwipe('discard');
     } else {
       animate(x, 0, { type: 'spring', stiffness: 600, damping: 35 });
       animate(y, 0, { type: 'spring', stiffness: 600, damping: 35 });
