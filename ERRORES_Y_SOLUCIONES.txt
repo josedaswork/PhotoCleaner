@@ -150,3 +150,132 @@ SOLUCIÓN:
 LECCIÓN:
   No asumir que gradlew existe. Usar borrado manual del build
   o compilar desde Android Studio.
+
+
+────────────────────────────────────────────────────────────
+7. PANTALLA EN BLANCO TRAS BORRAR FOTOS O "BACK TO FOLDERS"
+────────────────────────────────────────────────────────────
+
+PROBLEMA:
+  Al confirmar "Delete Photos" o pulsar "Go Back to Folder" en la
+  CompletionScreen, la app mostraba una pantalla en blanco permanente.
+  Había que recargar o cerrar/abrir la app.
+
+CAUSA:
+  AnimatePresence mode="wait" bloquea el montaje de la nueva página
+  hasta que la animación de salida termine. Si cualquier re-render
+  (actualización del store, cierre del diálogo Radix) interrumpe esa
+  animación, la nueva página NUNCA se monta → pantalla en blanco.
+
+SOLUCIÓN:
+  1. Eliminado mode="wait" de AnimatePresence en App.jsx.
+  2. Cambiado a crossfade con grid overlap (ambas páginas visibles
+     durante la transición).
+  3. Añadido pointerEvents: "none" en exit y initial para que la
+     página que sale no bloquee clicks en la nueva.
+
+ARCHIVOS AFECTADOS:
+  - src/App.jsx
+
+LECCIÓN:
+  AnimatePresence mode="wait" es frágil: cualquier re-render durante
+  la exit animation puede romper la transición. Usar crossfade con
+  pointer-events es más robusto.
+
+
+────────────────────────────────────────────────────────────
+8. FOTOS NO SE BORRAN DEL SISTEMA DE FICHEROS
+────────────────────────────────────────────────────────────
+
+PROBLEMA:
+  Al dar "Delete Photos", las fotos se eliminaban del store en memoria
+  pero seguían existiendo en el disco / sistema de ficheros.
+
+CAUSA:
+  removePhotos() solo eliminaba las fotos del array en memoria y
+  revocaba blob URLs. No borraba los archivos reales.
+  Además, <input webkitdirectory> (API antigua) da acceso de solo
+  lectura — no permite borrar archivos del disco.
+
+SOLUCIÓN:
+  1. Usar File System Access API (showDirectoryPicker con mode:'readwrite')
+     en vez de <input webkitdirectory>. Esto da permisos de escritura.
+  2. Nuevo método loadFromDirectoryHandle() en photoStore.js que guarda
+     el dirHandle del directorio padre en cada foto.
+  3. deleteFile() en capacitorPhotos.js ahora usa dirHandle.removeEntry()
+     para borrar el archivo real del disco (web) o Capacitor Filesystem
+     (nativo Android).
+  4. removePhotos() es ahora async y llama deleteFile() antes de
+     eliminar del store.
+
+ARCHIVOS AFECTADOS:
+  - src/lib/capacitorPhotos.js (deleteFile con dirHandle)
+  - src/lib/photoStore.js (loadFromDirectoryHandle, removePhotos async)
+  - src/pages/Home.jsx (showDirectoryPicker)
+  - src/components/EmptyState.jsx (showDirectoryPicker)
+
+LECCIÓN:
+  <input webkitdirectory> es solo lectura. Para borrar archivos del
+  disco en web, SIEMPRE usar File System Access API con mode:'readwrite'.
+  Solo funciona en Chrome y Edge.
+
+
+────────────────────────────────────────────────────────────
+9. AL ABRIR OTRA SUBCARPETA, CARGA CONTENIDO DE LA ANTERIOR
+────────────────────────────────────────────────────────────
+
+PROBLEMA:
+  Tras abrir subcarpeta A, volver al menú y abrir subcarpeta B,
+  se mostraban las fotos de A en vez de B.
+
+CAUSA (doble):
+  a) FrozenRoutes en App.jsx usaba key={location.pathname} que siempre
+     es "/clean" para todas las subcarpetas. React reutilizaba la misma
+     instancia con el useRef congelado apuntando a ?folder=A.
+  b) CleanFolder.jsx usaba useRef para congelar folderName del primer
+     montaje. Los useState (decisions, history) solo se inicializaban
+     en el primer mount con datos de la carpeta A.
+
+SOLUCIÓN:
+  a) Cambiado key a pathname+search en AnimatedRoutes para que cada
+     ?folder=X cree una instancia nueva.
+  b) Eliminado useRef para folderName; se lee directo de searchParams.
+  c) Añadido useEffect que resetea decisions, history, showConfirm,
+     showGrid y startFromIndex cuando folderName cambia.
+
+ARCHIVOS AFECTADOS:
+  - src/App.jsx (key del AnimatePresence)
+  - src/pages/CleanFolder.jsx (folderName sin ref + reset useEffect)
+
+LECCIÓN:
+  Si usas AnimatePresence con key para transiciones de página,
+  incluir SIEMPRE los query params en el key cuando el contenido
+  depende de ellos. No congelar con useRef valores que deben cambiar.
+
+
+────────────────────────────────────────────────────────────
+10. GRID MUESTRA FOTOS BORRADAS (IMÁGENES ROTAS)
+────────────────────────────────────────────────────────────
+
+PROBLEMA:
+  Tras borrar fotos, el grid seguía mostrándolas como imágenes rotas
+  (sin visualización porque ya no existían en disco).
+
+CAUSA:
+  usePhotoStore() devolvía siempre la misma referencia a photoStore.
+  Los useMemo en CleanFolder dependían de `store`, pero como la
+  referencia nunca cambiaba, allPhotos no se recalculaba tras
+  removePhotos() → el grid usaba datos stale.
+
+SOLUCIÓN:
+  usePhotoStore() ahora devuelve Object.create(photoStore) — un
+  wrapper con nueva identidad en cada tick del store. Así los useMemo
+  que dependen de `store` se recalculan automáticamente.
+
+ARCHIVOS AFECTADOS:
+  - src/lib/usePhotoStore.js
+
+LECCIÓN:
+  Cuando un hook devuelve un objeto singleton como dependencia de
+  useMemo, el memo NUNCA se invalida. Devolver un wrapper con nueva
+  identidad (Object.create) o incluir un counter en las deps.

@@ -2,8 +2,12 @@
  * @history
  * 2026-04-29 - Cleanup: removed unused _indices, getIndex(), setIndex().
  *              currentIndex tracking moved to component-level history stack.
+ * 2026-05-05 - Feature: added loadFromDirectoryHandle() for File System Access API.
+ *              Stores dirHandle on each photo for real file system deletion.
+ * 2026-05-05 - Fix: removePhotos is now async; calls deleteFile() to delete
+ *              from disk (native via Capacitor, web via dirHandle.removeEntry).
  */
-import { isNative, scanDirectory } from './capacitorPhotos';
+import { isNative, scanDirectory, deleteFile } from './capacitorPhotos';
 
 const PERSIST_KEY = 'swipeclean-saved-folders';
 
@@ -103,6 +107,54 @@ export const photoStore = {
     notify();
   },
 
+  /**
+   * Load photos using the File System Access API (showDirectoryPicker).
+   * Stores directory handles so files can be deleted from disk later.
+   */
+  async loadFromDirectoryHandle(dirHandle) {
+    const allowedExtensions = /\.(jpg|jpeg|png|webp|gif|bmp|tiff|heic)$/i;
+
+    async function scanDir(handle, parentPath, rootName) {
+      for await (const [name, entry] of handle) {
+        if (entry.kind === 'file') {
+          if (!allowedExtensions.test(name)) continue;
+          try {
+            const file = await entry.getFile();
+            const folderName = parentPath || rootName;
+            if (!_folders[folderName]) _folders[folderName] = [];
+            if (_folders[folderName].some(p => p.name === name)) continue;
+
+            const url = URL.createObjectURL(file);
+            _folders[folderName].push({
+              file,
+              url,
+              name: file.name,
+              size: file.size,
+              folder: folderName,
+              path: parentPath ? `${parentPath}/${name}` : name,
+              lastModified: file.lastModified || 0,
+              dirHandle: handle,   // store parent dir handle for deletion
+            });
+          } catch (e) {
+            console.warn(`Failed to read ${name}:`, e);
+          }
+        } else if (entry.kind === 'directory') {
+          const subPath = parentPath ? `${parentPath}/${name}` : name;
+          await scanDir(entry, subPath, rootName);
+        }
+      }
+    }
+
+    await scanDir(dirHandle, '', dirHandle.name);
+
+    for (const name of Object.keys(_folders)) {
+      _folders[name].sort((a, b) => (a.lastModified || 0) - (b.lastModified || 0));
+    }
+    saveFolderMeta();
+    notify();
+    return this.getTotalPhotos();
+  },
+
   async loadFromNativePaths(folderPaths) {
     for (const dirPath of folderPaths) {
       const photos = await scanDirectory(dirPath);
@@ -130,15 +182,15 @@ export const photoStore = {
     return loadFolderMeta();
   },
 
-  removePhotos(photosToRemove) {
+  async removePhotos(photosToRemove) {
+    // Delete files from disk (native) or revoke blob URLs (web)
+    await Promise.all(photosToRemove.map(p => deleteFile(p)));
+    // Remove from in-memory store
     const urlsToRemove = new Set(photosToRemove.map(p => p.url));
     for (const folder of Object.keys(_folders)) {
       _folders[folder] = _folders[folder].filter(p => !urlsToRemove.has(p.url));
       if (_folders[folder].length === 0) delete _folders[folder];
     }
-    photosToRemove.forEach(p => {
-      if (!p.nativePath) URL.revokeObjectURL(p.url);
-    });
     saveFolderMeta();
     notify();
   },

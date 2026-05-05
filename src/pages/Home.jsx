@@ -32,10 +32,48 @@ export default function Home() {
     }
   }, []);
 
-  const handleSelectFolder = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length > 0) store.loadFromInput(files);
-    e.target.value = '';
+  const handleSelectFolder = async (e) => {
+    // If called from <input>, fall back to loadFromInput
+    if (e && e.target && e.target.files) {
+      const files = Array.from(e.target.files);
+      if (files.length > 0) store.loadFromInput(files);
+      e.target.value = '';
+      return;
+    }
+    // Use File System Access API
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      const count = await photoStore.loadFromDirectoryHandle(dirHandle);
+      if (count > 0) {
+        toast.success(`Added ${count} photos`);
+      } else {
+        toast.info('No photos found');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.error('Directory picker error:', err);
+        toast.error('Failed to open folder');
+      }
+    }
+  };
+
+  const handlePickWebFolder = async () => {
+    if (window.showDirectoryPicker) {
+      try {
+        const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        const count = await photoStore.loadFromDirectoryHandle(dirHandle);
+        if (count > 0) {
+          toast.success(`Added ${count} photos`);
+        } else {
+          toast.info('No photos found');
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error('Directory picker error:', err);
+          toast.error('Failed to open folder');
+        }
+      }
+    }
   };
 
   const handleAddNativeFolder = async () => {
@@ -131,25 +169,16 @@ export default function Home() {
                 <FolderOpen className="w-5 h-5 text-secondary-foreground" />
               </motion.button>
             ) : (
-              <motion.label
+              <motion.button
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.25 }}
                 whileTap={{ scale: 0.9 }}
-                className="cursor-pointer"
+                onClick={handlePickWebFolder}
+                className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors shadow-sm"
               >
-                <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center hover:bg-accent transition-colors shadow-sm">
-                  <FolderOpen className="w-5 h-5 text-secondary-foreground" />
-                </div>
-                <input
-                  type="file"
-                  webkitdirectory=""
-                  directory=""
-                  multiple
-                  className="hidden"
-                  onChange={handleSelectFolder}
-                />
-              </motion.label>
+                <FolderOpen className="w-5 h-5 text-secondary-foreground" />
+              </motion.button>
             )}
           </div>
         </div>

@@ -9,6 +9,7 @@ vi.mock('@capacitor/core', () => ({
 vi.mock('@/lib/capacitorPhotos', () => ({
   isNative: () => false,
   scanDirectory: vi.fn().mockResolvedValue([]),
+  deleteFile: vi.fn().mockResolvedValue(undefined),
 }));
 
 // localStorage mock
@@ -126,9 +127,7 @@ describe('photoStore', () => {
   });
 
   describe('removePhotos', () => {
-    it('removes specified photos and revokes blob URLs', async () => {
-      const revokeObjectURL = vi.fn();
-      globalThis.URL.revokeObjectURL = revokeObjectURL;
+    it('removes specified photos and calls deleteFile', async () => {
       globalThis.URL.createObjectURL = vi.fn(() => 'blob:removeme');
 
       const file = new File(['img'], 'remove.jpg', { type: 'image/jpeg' });
@@ -136,10 +135,69 @@ describe('photoStore', () => {
       await photoStore.loadFromInput([file]);
 
       const photos = photoStore.getPhotos('Folder');
-      photoStore.removePhotos(photos);
+      await photoStore.removePhotos(photos);
 
       expect(photoStore.getPhotos('Folder')).toHaveLength(0);
-      expect(revokeObjectURL).toHaveBeenCalledWith('blob:removeme');
+      const { deleteFile } = await import('@/lib/capacitorPhotos');
+      expect(deleteFile).toHaveBeenCalled();
+    });
+
+    it('deleted photo paths no longer exist in any folder', async () => {
+      globalThis.URL.createObjectURL = vi.fn()
+        .mockReturnValueOnce('blob:a')
+        .mockReturnValueOnce('blob:b')
+        .mockReturnValueOnce('blob:c');
+
+      const fileA = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
+      Object.defineProperty(fileA, 'webkitRelativePath', { value: 'Pics/a.jpg' });
+      const fileB = new File(['b'], 'b.jpg', { type: 'image/jpeg' });
+      Object.defineProperty(fileB, 'webkitRelativePath', { value: 'Pics/b.jpg' });
+      const fileC = new File(['c'], 'c.jpg', { type: 'image/jpeg' });
+      Object.defineProperty(fileC, 'webkitRelativePath', { value: 'Pics/c.jpg' });
+      await photoStore.loadFromInput([fileA, fileB, fileC]);
+
+      expect(photoStore.getPhotos('Pics')).toHaveLength(3);
+
+      // Delete only a.jpg and c.jpg
+      const allPhotos = photoStore.getPhotos('Pics');
+      const toDelete = allPhotos.filter(p => p.name === 'a.jpg' || p.name === 'c.jpg');
+      await photoStore.removePhotos(toDelete);
+
+      const remaining = photoStore.getPhotos('Pics');
+      const remainingNames = remaining.map(p => p.name);
+      const remainingUrls = remaining.map(p => p.url);
+
+      // Deleted photos must not appear anywhere
+      expect(remainingNames).not.toContain('a.jpg');
+      expect(remainingNames).not.toContain('c.jpg');
+      expect(remainingUrls).not.toContain('blob:a');
+      expect(remainingUrls).not.toContain('blob:c');
+
+      // Only b.jpg should remain
+      expect(remaining).toHaveLength(1);
+      expect(remainingNames).toContain('b.jpg');
+
+      // No deleted photo path should exist across all folders
+      const allFolderPhotos = photoStore.getFolderNames()
+        .flatMap(f => photoStore.getPhotos(f));
+      const allPaths = allFolderPhotos.map(p => p.url);
+      expect(allPaths).not.toContain('blob:a');
+      expect(allPaths).not.toContain('blob:c');
+    });
+
+    it('removes folder entirely when all photos are deleted', async () => {
+      globalThis.URL.createObjectURL = vi.fn(() => 'blob:only');
+
+      const file = new File(['img'], 'only.jpg', { type: 'image/jpeg' });
+      Object.defineProperty(file, 'webkitRelativePath', { value: 'Solo/only.jpg' });
+      await photoStore.loadFromInput([file]);
+
+      expect(photoStore.getFolderNames()).toContain('Solo');
+
+      await photoStore.removePhotos(photoStore.getPhotos('Solo'));
+
+      expect(photoStore.getFolderNames()).not.toContain('Solo');
+      expect(photoStore.getPhotos('Solo')).toHaveLength(0);
     });
 
     it('does not revoke native paths', async () => {
@@ -155,8 +213,75 @@ describe('photoStore', () => {
       const photos = photoStore.getPhotos('N');
       photos[0].nativePath = '/sdcard/native.jpg';
 
-      photoStore.removePhotos(photos);
+      await photoStore.removePhotos(photos);
       expect(revokeObjectURL).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('loadFromDirectoryHandle + deleteFile with dirHandle', () => {
+    it('loads photos from a directory handle and stores dirHandle on each photo', async () => {
+      globalThis.URL.createObjectURL = vi.fn(() => 'blob:fsapi');
+
+      const mockFile = new File(['img'], 'photo.jpg', { type: 'image/jpeg' });
+      Object.defineProperty(mockFile, 'lastModified', { value: 1000 });
+
+      const fileEntry = {
+        kind: 'file',
+        getFile: vi.fn().mockResolvedValue(mockFile),
+      };
+
+      const mockDirHandle = {
+        name: 'MyPhotos',
+        [Symbol.asyncIterator]: async function* () {
+          yield ['photo.jpg', fileEntry];
+        },
+      };
+
+      await photoStore.loadFromDirectoryHandle(mockDirHandle);
+
+      const photos = photoStore.getPhotos('MyPhotos');
+      expect(photos).toHaveLength(1);
+      expect(photos[0].name).toBe('photo.jpg');
+      expect(photos[0].dirHandle).toBe(mockDirHandle);
+    });
+
+    it('deleteFile is called with photo that has dirHandle for real FS deletion', async () => {
+      globalThis.URL.createObjectURL = vi.fn(() => 'blob:fsdelete');
+
+      const removeEntry = vi.fn().mockResolvedValue(undefined);
+      const mockFile = new File(['img'], 'delete-me.jpg', { type: 'image/jpeg' });
+
+      const fileEntry = {
+        kind: 'file',
+        getFile: vi.fn().mockResolvedValue(mockFile),
+      };
+
+      const mockDirHandle = {
+        name: 'ToDelete',
+        removeEntry,
+        [Symbol.asyncIterator]: async function* () {
+          yield ['delete-me.jpg', fileEntry];
+        },
+      };
+
+      await photoStore.loadFromDirectoryHandle(mockDirHandle);
+
+      const photos = photoStore.getPhotos('ToDelete');
+      expect(photos).toHaveLength(1);
+      expect(photos[0].dirHandle).toBe(mockDirHandle);
+
+      // deleteFile is mocked, so we verify the photo passed to it has dirHandle
+      await photoStore.removePhotos(photos);
+
+      const { deleteFile } = await import('@/lib/capacitorPhotos');
+      expect(deleteFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'delete-me.jpg',
+          dirHandle: mockDirHandle,
+        })
+      );
+      expect(photoStore.getPhotos('ToDelete')).toHaveLength(0);
+      expect(photoStore.getFolderNames()).not.toContain('ToDelete');
     });
   });
 

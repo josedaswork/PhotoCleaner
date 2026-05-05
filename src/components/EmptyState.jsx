@@ -140,22 +140,41 @@ export default function EmptyState({ onSelectFolder, savedMeta }) {
           </button>
         )}
 
-        {/* Web: Browse folder */}
+        {/* Web: Browse folder using File System Access API */}
         {!native && (
-          <label className="w-full cursor-pointer">
-            <div className="w-full bg-primary text-primary-foreground px-6 py-3.5 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-primary/20 flex items-center justify-center gap-2.5">
+          <button
+            onClick={async () => {
+              if (!window.showDirectoryPicker) {
+                toast.error('Your browser does not support folder access. Use Chrome or Edge.');
+                return;
+              }
+              try {
+                const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                setLoading(true);
+                const count = await photoStore.loadFromDirectoryHandle(dirHandle);
+                if (count > 0) {
+                  toast.success(`Found ${count} photos`);
+                } else {
+                  toast.info('No photos found in this folder');
+                }
+              } catch (err) {
+                if (err.name !== 'AbortError') {
+                  console.error('Directory picker error:', err);
+                  toast.error('Failed to open folder');
+                }
+              }
+              setLoading(false);
+            }}
+            disabled={loading}
+            className="w-full bg-primary text-primary-foreground px-6 py-3.5 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity shadow-lg shadow-primary/20 flex items-center justify-center gap-2.5 disabled:opacity-60"
+          >
+            {loading ? (
+              <Loader2 className="w-4.5 h-4.5 animate-spin" />
+            ) : (
               <FolderOpen className="w-4.5 h-4.5" />
-              Browse Folder
-            </div>
-            <input
-              type="file"
-              webkitdirectory=""
-              directory=""
-              multiple
-              className="hidden"
-              onChange={onSelectFolder}
-            />
-          </label>
+            )}
+            {loading ? 'Scanning...' : 'Browse Folder'}
+          </button>
         )}
       </motion.div>
     </div>

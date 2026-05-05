@@ -1,3 +1,9 @@
+/**
+ * @history
+ * 2026-05-05 - Feature: added deleteFile() that deletes from the real file system.
+ *              Web: uses dirHandle.removeEntry() via File System Access API.
+ *              Native: uses Capacitor Filesystem.deleteFile().
+ */
 import { Capacitor } from '@capacitor/core';
 
 const PHOTO_EXTENSIONS = /\.(jpg|jpeg|png|webp|gif|bmp|heic|heif|avif|tiff|tif|svg|raw|cr2|nef|arw|dng)$/i;
@@ -129,4 +135,40 @@ export async function requestPermissions() {
   } catch {
     return false;
   }
+}
+
+/**
+ * Delete a file from the file system.
+ * - Native: deletes via Capacitor Filesystem.
+ * - Web with File System Access API: deletes via dirHandle.removeEntry().
+ * - Web fallback: revokes the blob URL (can't delete without handle).
+ */
+export async function deleteFile(photo) {
+  // Web: use File System Access API handle if available
+  if (photo.dirHandle) {
+    try {
+      await photo.dirHandle.removeEntry(photo.name);
+    } catch (e) {
+      console.warn(`Failed to delete ${photo.name} via handle:`, e);
+    }
+    if (photo.url) URL.revokeObjectURL(photo.url);
+    return;
+  }
+
+  // Native: use Capacitor Filesystem
+  if (isNative() && photo.nativePath) {
+    try {
+      const { Filesystem, Directory } = await getFS();
+      await Filesystem.deleteFile({
+        path: photo.nativePath,
+        directory: Directory.ExternalStorage,
+      });
+    } catch (e) {
+      console.warn(`Failed to delete ${photo.nativePath}:`, e);
+    }
+    return;
+  }
+
+  // Fallback: just revoke the blob URL
+  if (photo.url) URL.revokeObjectURL(photo.url);
 }

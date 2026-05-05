@@ -4,8 +4,14 @@
  *              undecidedPhotos now auto-shrinks on decision; always show [0].
  *              Added history stack for undo. Fixed counter and progress bar.
  * 2026-04-29 - Fix: replaced leftover currentIndex key reference with totalDecided.
+ * 2026-05-05 - Fix: removed useRef for folderName; read directly from searchParams
+ *              so navigating to a different folder shows correct content.
+ * 2026-05-05 - Fix: added useEffect to reset all state (decisions, history, grid, etc.)
+ *              when folderName changes, preventing stale data from previous folder.
+ * 2026-05-05 - Fix: handleConfirmDelete now awaits removePhotos before navigate
+ *              so photos are deleted before Home re-renders.
  */
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, RotateCcw, Trash2, Grid3X3 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -25,14 +31,22 @@ export default function CleanFolder() {
   const navigate = useNavigate();
   const store = usePhotoStore();
   const [searchParams] = useSearchParams();
-  const folderNameRef = useRef(searchParams.get('folder') || '');
-  const folderName = folderNameRef.current;
+  const folderName = searchParams.get('folder') || '';
   const allPhotos = useMemo(() => store.getPhotos(folderName), [folderName, store]);
   const [decisions, setDecisions] = useState(() => photoStore.getDecisions(folderName));
   const [showConfirm, setShowConfirm] = useState(false);
   const [history, setHistory] = useState([]);
   const [showGrid, setShowGrid] = useState(false);
   const [startFromIndex, setStartFromIndex] = useState(null);
+
+  // Reset all state when the folder changes (component may be reused)
+  useEffect(() => {
+    setDecisions(photoStore.getDecisions(folderName));
+    setHistory([]);
+    setShowConfirm(false);
+    setShowGrid(false);
+    setStartFromIndex(null);
+  }, [folderName]);
 
   // Filter out photos that already have a decision, rotate to startFromIndex in allPhotos
   const undecidedPhotos = useMemo(() => {
@@ -101,15 +115,16 @@ export default function CleanFolder() {
     });
   };
 
-  const handleConfirmDelete = () => {
-    const count = discardedPhotos.length;
+  const handleConfirmDelete = async () => {
+    const toRemove = [...discardedPhotos];
+    const count = toRemove.length;
     const size = formatSize(discardedSize);
-    store.removePhotos(discardedPhotos);
-    photoStore.clearDecisions(folderName);
     setShowConfirm(false);
     hapticSuccess();
     toast.success(`Deleted ${count} photos, freed ${size}`);
     notifyCleanupComplete(count, size);
+    photoStore.clearDecisions(folderName);
+    await store.removePhotos(toRemove);
     navigate('/');
   };
 

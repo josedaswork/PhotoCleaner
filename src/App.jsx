@@ -1,3 +1,12 @@
+/**
+ * @history
+ * 2026-05-05 - Fix: AnimatePresence key changed from pathname to pathname+search
+ *              so different ?folder= query params create new component instances.
+ * 2026-05-05 - Fix: removed mode="wait" from AnimatePresence to prevent blank
+ *              screen when exit animation is interrupted by store updates.
+ * 2026-05-05 - Fix: added pointerEvents none/auto to exit/enter animations
+ *              so exiting page doesn't block clicks on the new page.
+ */
 import React, { useRef } from 'react';
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -31,10 +40,13 @@ function FrozenRoutes({ location }) {
 
 function AnimatedRoutes() {
   const location = useLocation();
+  // Use pathname + search as key so different query params (e.g. ?folder=X)
+  // create a new component instance instead of reusing the old one
+  const locationKey = location.pathname + location.search;
   return (
     <div className="grid [&>*]:col-start-1 [&>*]:row-start-1">
       <AnimatePresence>
-        <FrozenRoutes key={location.pathname} location={location} />
+        <FrozenRoutes key={locationKey} location={location} />
       </AnimatePresence>
     </div>
   );
