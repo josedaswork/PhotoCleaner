@@ -2,7 +2,8 @@
 # Script de instalacion - SwipeClean (Android Photo Cleaner)
 # Instala Node.js y dependencias para desarrollo local
 # La build de Android se hace via GitHub Actions
-# Ejecutar en PowerShell
+# Ejecutar en 
+#PowerShell
 # ============================================================
 
 Write-Host ""
